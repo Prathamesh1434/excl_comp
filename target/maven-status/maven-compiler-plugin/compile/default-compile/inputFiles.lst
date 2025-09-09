@@ -1,0 +1,14 @@
+/app/src/main/java/com/excelutility/gui/PreviewPanel.java
+/app/src/main/java/com/excelutility/compare/RowComparator.java
+/app/src/main/java/com/excelutility/excel/ExcelWriter.java
+/app/src/main/java/com/excelutility/excel/Normalizer.java
+/app/src/main/java/com/excelutility/gui/MainFrame.java
+/app/src/main/java/com/excelutility/App.java
+/app/src/main/java/com/excelutility/compare/CellComparisonResult.java
+/app/src/main/java/com/excelutility/excel/ExcelReader.java
+/app/src/main/java/com/excelutility/compare/RowComparisonStatus.java
+/app/src/main/java/com/excelutility/compare/ComparisonReport.java
+/app/src/main/java/com/excelutility/gui/ResultTableRenderer.java
+/app/src/main/java/com/excelutility/compare/RowComparisonResult.java
+/app/src/main/java/com/excelutility/gui/ResultTableModel.java
+/app/src/main/java/com/excelutility/compare/KeyMatcher.java
