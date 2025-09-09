@@ -1,17 +1,22 @@
-# Excel Utility
+# Excel Comparator
 
-An interactive Java Swing desktop application to compare two Excel files. This tool supports multi-row headers, composite key matching, and generates color-coded comparison reports.
+An interactive Java Swing desktop application to compare two Excel files. This tool supports multi-row header normalization, dynamic key column mapping, and generates detailed, color-coded comparison reports.
 
 ## Features
 
 -   **Compare Excel Files**: Supports both `.xls` and `.xlsx` formats.
--   **Sheet Selection**: Allows you to select which sheet to compare from each file.
+-   **Dynamic Key Mapping**: Define one or more pairs of columns (one from each file) to be used as a composite key for row alignment.
 -   **Data Preview**: Shows a preview of the first 10 rows of data from each selected sheet.
--   **Composite Key Matching**: Define one or more columns as a composite key to match rows between the two files.
--   **Color-Coded Results**: Displays comparison results in a table with color-coding for identical, mismatched, and missing rows.
+-   **Header Normalization**: Supports multi-row headers by merging them into a single, combined header. This can be enabled per file, and the number of header rows is configurable.
+-   **Flexible Comparison Options**:
+    -   Enable/disable column-level comparison.
+    -   Enable/disable detection of missing/extra rows.
+-   **Color-Coded Results**: Displays comparison results in a table with clear color-coding:
+    -   **Yellow**: Mismatched rows.
+    -   **Pink**: Rows missing in one of the files.
+    -   **Orange**: Specific cells within a mismatched row that have different values.
 -   **Tooltip on Mismatched Cells**: Hover over a mismatched cell to see the values from both files.
--   **Export to Excel**: Export the comparison report to a new Excel file, preserving the color-coding.
--   **Header Normalization**: Supports multi-row headers by merging them into a single header.
+-   **Export to Excel**: Export the full comparison report to a new Excel file, preserving the color-coding for easy analysis and sharing.
 
 ## Technical Stack
 
@@ -25,7 +30,7 @@ An interactive Java Swing desktop application to compare two Excel files. This t
 1.  **Clone the repository**:
     ```sh
     git clone <repository-url>
-    cd excel-utility
+    cd excel-comparator
     ```
 
 2.  **Prerequisites**:
@@ -63,26 +68,13 @@ To build a runnable JAR file with all dependencies included:
     java -jar target/excel-comparator-1.0-SNAPSHOT-jar-with-dependencies.jar
     ```
 
-## GUI Screenshots
+## UI Layout
 
-*(Here you would include screenshots of the application's GUI, showing the file selection, preview panels, key selection, and results table.)*
+The application window is divided into several sections:
+-   **Top**: Normalization options for each file.
+-   **Middle**: A side-by-side preview of the loaded Excel files.
+-   **Bottom-Left**: Comparison options, including checkboxes and the dynamic key mapping UI.
+-   **Bottom-Right**: The results table where the comparison report is displayed.
+-   **Bottom**: Action buttons to run the comparison, export, clear, and exit.
 
-**Main Window:**
-`[Screenshot of the main application window]`
-
-**File Selection:**
-`[Screenshot of the file chooser dialog]`
-
-**Results Display:**
-`[Screenshot of the results table with color-coding]`
-
-## Example Output
-
-The exported Excel file (`comparison_result.xlsx`) will look like this:
-
--   **White rows**: Identical rows.
--   **Yellow rows**: Mismatched rows.
--   **Pink rows**: Rows that are missing in one of the files.
--   **Orange cells**: Specific cells within a mismatched row that have different values.
-
-`[Screenshot of the output Excel file]`
+*(A screenshot of the application would be placed here to illustrate the layout.)*

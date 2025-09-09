@@ -1,4 +1,4 @@
-com/excelutility/ExcelWriterTest.class
-com/excelutility/KeyMatcherTest.class
-com/excelutility/NormalizerTest.class
-com/excelutility/ExcelReaderTest.class
+com/excelcomparator/ExcelWriterTest.class
+com/excelcomparator/ComparerTest.class
+com/excelcomparator/ExcelReaderTest.class
+com/excelcomparator/NormalizerTest.class
