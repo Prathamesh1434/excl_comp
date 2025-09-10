@@ -1,8 +1,16 @@
 # Excel Utility
 
-A production-ready, GUI-only Java Swing desktop application for comparing two Excel files. This tool provides a comprehensive set of features for normalization, key mapping, detailed comparison, and reporting, all configurable through an intuitive user interface.
+A production-ready, GUI-only Java Swing desktop application for comparing Excel files and filtering Excel data. This tool provides a comprehensive set of features for normalization, key mapping, detailed comparison, interactive filtering, and reporting, all configurable through an intuitive user interface.
 
-## Key Features
+## Modes of Operation
+
+When you launch the application, you can choose between two primary modes:
+
+### 1. Compare Excel Files (Classic Mode)
+
+This mode allows you to perform a detailed comparison of two Excel files.
+
+**Key Features**:
 
 -   **GUI-Only Configuration**: No command-line interface or manual file editing required. All configurations, from file loading to complex normalization rules, are managed through the GUI.
 -   **Advanced Key Column Selection**:
@@ -12,10 +20,21 @@ A production-ready, GUI-only Java Swing desktop application for comparing two Ex
     -   An **"Auto-Suggest Keys"** feature analyzes your data and recommends the best columns to use as unique identifiers.
 -   **Header Normalization**: Supports multi-row headers by merging them into a single, combined header. This can be enabled per file, and the number of header rows is configurable.
 -   **Profile Management**: Save and load complex comparison configurations to and from profiles via a user-friendly Profile Manager.
--   **Test Case Generator**: A built-in tool to automatically generate a suite of test files for various scenarios.
 -   **Large File Support**: Includes a streaming mode to handle large `.xlsx` files efficiently.
 
-*(Note: Advanced features like the Filter Builder, detailed normalization pipelines, and rich exports are planned but not yet fully implemented in this version.)*
+### 2. Filter Excel Data (New)
+
+This mode allows you to filter one Excel file based on a list of values or entire columns from another Excel file.
+
+**Key Features**:
+
+-   **Interactive Filter Creation**: Load a "Data File" and a "Filter Values File". Simply double-click any cell in the "Filter Values" preview table to create a filter.
+-   **Flexible Filter Sources**: A dialog will ask if you want to filter by the specific **cell value** you clicked, or by all values in that cell's **column**.
+-   **Targeted Filtering**: After choosing your filter source, another dialog lets you apply the filter to one or more columns in your Data File.
+-   **Filter Management**: A dedicated panel shows all your configured filters. You can clear them at any time.
+-   **Configurable Export**:
+    -   Download all filtered results into a **single Excel file** with one sheet per filter, or as **separate files**.
+    -   Choose a custom **highlight color** for the filtered rows in the exported files.
 
 ## Technical Stack
 
@@ -42,6 +61,7 @@ Execute the generated JAR file:
 ```sh
 java -jar target/excel-utility-1.0.0-all.jar
 ```
+You will be prompted to choose a mode upon startup.
 
 ### Run Tests
 
@@ -53,7 +73,7 @@ mvn test
 ## Developer Notes
 
 -   **Project Structure**: The project is organized into `gui`, `core`, `io`, `excel`, and `test` packages.
--   **Profiles**: Profiles are saved as `.json` files in a `profiles/` directory created where the application is run.
+-   **Profiles**: Comparison profiles are saved as `.json` files in a `profiles/` directory created where the application is run.
 -   **Test Cases**: Generated test cases are saved to the `target/test-cases/` directory.
 
 ## Troubleshooting

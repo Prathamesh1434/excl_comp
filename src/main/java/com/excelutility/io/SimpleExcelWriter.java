@@ -11,6 +11,7 @@ import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
@@ -161,5 +162,72 @@ public class SimpleExcelWriter {
         style.setFillForegroundColor(new XSSFColor(awtColor, null));
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         return style;
+    }
+
+    public static void writeFilteredResults(String baseFilePath, Map<String, List<List<Object>>> filteredData, boolean mergeInOneFile, java.awt.Color rowColor) throws IOException {
+        if (mergeInOneFile) {
+            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+                for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
+                    writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
+                }
+                try (FileOutputStream outputStream = new FileOutputStream(baseFilePath)) {
+                    workbook.write(outputStream);
+                }
+            }
+        } else {
+            File baseFile = new File(baseFilePath);
+            String parentDir = baseFile.getParent();
+            String baseName = baseFile.getName();
+            String extension = "";
+            int i = baseName.lastIndexOf('.');
+            if (i > 0) {
+                extension = baseName.substring(i);
+                baseName = baseName.substring(0, i);
+            }
+
+            for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
+                String fileName = String.format("%s_%s%s", baseName, entry.getKey(), extension);
+                File outputFile = new File(parentDir, fileName);
+                try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+                    writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
+                    try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+                        workbook.write(outputStream);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void writeSheet(XSSFWorkbook workbook, String sheetName, List<List<Object>> data, java.awt.Color rowColor) {
+        Sheet sheet = workbook.createSheet(sheetName);
+        CellStyle rowStyle = createStyleWithColor(workbook, rowColor);
+
+        int rowNum = 0;
+        for (List<Object> rowData : data) {
+            Row row = sheet.createRow(rowNum++);
+            int colNum = 0;
+            for (Object field : rowData) {
+                Cell cell = row.createCell(colNum++);
+                if (field instanceof String) {
+                    cell.setCellValue((String) field);
+                } else if (field instanceof Integer) {
+                    cell.setCellValue((Integer) field);
+                } else if (field instanceof Double) {
+                    cell.setCellValue((Double) field);
+                } else {
+                    cell.setCellValue(field != null ? field.toString() : "");
+                }
+                if (rowNum > 1) { // Don't color header
+                    cell.setCellStyle(rowStyle);
+                }
+            }
+        }
+
+        // Autosize columns
+        if (!data.isEmpty()) {
+            for (int i = 0; i < data.get(0).size(); i++) {
+                sheet.autoSizeColumn(i);
+            }
+        }
     }
 }
