@@ -117,6 +117,12 @@
                                     <addHeader>false</addHeader>
                                 </transformer>
                             </transformers>
+                            <relocations>
+                                <relocation>
+                                    <pattern>org.apache.xmlbeans</pattern>
+                                    <shadedPattern>com.excelutility.shaded.xmlbeans</shadedPattern>
+                                </relocation>
+                            </relocations>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
