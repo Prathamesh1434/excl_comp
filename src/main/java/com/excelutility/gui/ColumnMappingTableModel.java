@@ -10,8 +10,8 @@ import java.util.Map;
  */
 public class ColumnMappingTableModel extends AbstractTableModel {
 
-    private final String[] columnNames = {"Source Column", "Target Column", "Ignore"};
-    private List<Object[]> data = new ArrayList<>(); // Data: [String source, String target, Boolean ignore]
+    private final String[] columnNames = {"Source Column", "Target Column", "Is Key", "Ignore"};
+    private List<Object[]> data = new ArrayList<>(); // Data: [String source, String target, Boolean isKey, Boolean ignore]
 
     public void setSourceColumns(List<String> sourceColumns, List<String> targetColumns) {
         data.clear();
@@ -21,7 +21,7 @@ public class ColumnMappingTableModel extends AbstractTableModel {
                     .filter(t -> t.equalsIgnoreCase(sourceCol))
                     .findFirst()
                     .orElse(null);
-            data.add(new Object[]{sourceCol, targetCol, false});
+            data.add(new Object[]{sourceCol, targetCol, false, false});
         }
         fireTableDataChanged();
     }
@@ -47,7 +47,7 @@ public class ColumnMappingTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        if (columnIndex == 2) {
+        if (columnIndex == 2 || columnIndex == 3) { // Is Key and Ignore
             return Boolean.class;
         }
         return String.class;

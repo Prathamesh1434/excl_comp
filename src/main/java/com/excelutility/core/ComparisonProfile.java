@@ -33,6 +33,10 @@ public class ComparisonProfile {
     // Per-column rules (to be expanded)
     // private Map<String, ColumnProfile> columnProfiles;
 
+    // Filter settings
+    private FilterGroup sourceFilterGroup;
+    private FilterGroup targetFilterGroup;
+
     // Performance settings
     private boolean useStreaming = false;
 
@@ -66,4 +70,8 @@ public class ComparisonProfile {
     public void setIgnoreCase(boolean ignoreCase) { this.ignoreCase = ignoreCase; }
     public boolean isUseStreaming() { return useStreaming; }
     public void setUseStreaming(boolean useStreaming) { this.useStreaming = useStreaming; }
+    public FilterGroup getSourceFilterGroup() { return sourceFilterGroup; }
+    public void setSourceFilterGroup(FilterGroup sourceFilterGroup) { this.sourceFilterGroup = sourceFilterGroup; }
+    public FilterGroup getTargetFilterGroup() { return targetFilterGroup; }
+    public void setTargetFilterGroup(FilterGroup targetFilterGroup) { this.targetFilterGroup = targetFilterGroup; }
 }

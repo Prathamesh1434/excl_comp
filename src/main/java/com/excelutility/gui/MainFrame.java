@@ -3,7 +3,7 @@ package com.excelutility.gui;
 import com.excelutility.core.ComparisonProfile;
 import com.excelutility.core.ComparisonResult;
 import com.excelutility.core.ComparisonService;
-import com.excelutility.core.RowMatchStrategy;
+import com.excelutility.core.KeySuggester;
 import com.excelutility.io.ExcelReader;
 import com.excelutility.io.ProfileService;
 import net.miginfocom.swing.MigLayout;
@@ -92,6 +92,9 @@ public class MainFrame extends JFrame {
         JPanel topPanel = new JPanel(new MigLayout("fillx", "[grow][grow]"));
         sourceFilePanel = new FileConfigPanel("Source File");
         targetFilePanel = new FileConfigPanel("Target File");
+        sourceFilePanel.getAutoSuggestButton().addActionListener(e -> autoSuggestKeys());
+        sourceFilePanel.getFilterButton().addActionListener(e -> openFilterBuilder(true));
+        targetFilePanel.getFilterButton().addActionListener(e -> openFilterBuilder(false));
         topPanel.add(sourceFilePanel, "growx");
         topPanel.add(targetFilePanel, "growx");
         mainPanel.add(topPanel, "dock north");
@@ -105,7 +108,6 @@ public class MainFrame extends JFrame {
 
         JPanel topRightPanel = new JPanel(new MigLayout("fill", "[grow]", "[grow]"));
         topRightPanel.setBorder(BorderFactory.createTitledBorder("Normalization & Comparison Rules"));
-        // TODO: Add actual rule controls
         topRightPanel.add(new JLabel("Normalization rules will go here."), "grow");
 
         JSplitPane topSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, columnMappingPanel, topRightPanel);
@@ -149,9 +151,25 @@ public class MainFrame extends JFrame {
         }
     }
 
+    private void populateSheetCombo(JComboBox<String> combo, String filePath, boolean isSource) {
+        try {
+            List<String> sheetNames = ExcelReader.getSheetNames(filePath);
+            combo.removeAllItems();
+            for (String name : sheetNames) {
+                combo.addItem(name);
+            }
+            if (!sheetNames.isEmpty()) {
+                combo.setSelectedIndex(0);
+                loadHeaders(filePath, sheetNames.get(0), isSource);
+            }
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Error reading sheets from file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private void loadHeaders(String filePath, String sheetName, boolean isSource) {
         try {
-            List<List<Object>> headerData = ExcelReader.read(filePath, sheetName, true); // Read a few rows for headers
+            List<List<Object>> headerData = ExcelReader.read(filePath, sheetName, true);
             if (headerData.isEmpty()) {
                 if (isSource) this.sourceHeaders = new ArrayList<>(); else this.targetHeaders = new ArrayList<>();
             } else {
@@ -167,25 +185,7 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void populateSheetCombo(JComboBox<String> combo, String filePath, boolean isSource) {
-        try {
-            List<String> sheetNames = ExcelReader.getSheetNames(filePath);
-            combo.removeAllItems();
-            for (String name : sheetNames) {
-                combo.addItem(name);
-            }
-            // Auto-select first sheet and load headers
-            if (!sheetNames.isEmpty()) {
-                combo.setSelectedIndex(0);
-                loadHeaders(filePath, sheetNames.get(0), isSource);
-            }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error reading sheets from file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
     private void runComparison() {
-        // 1. Populate profile from GUI
         if (sourceFilePanel.getSheetCombo().getSelectedItem() == null || targetFilePanel.getSheetCombo().getSelectedItem() == null) {
             JOptionPane.showMessageDialog(this, "Please select a sheet for both files.", "Sheet Not Selected", JOptionPane.WARNING_MESSAGE);
             return;
@@ -193,18 +193,19 @@ public class MainFrame extends JFrame {
         profile.setSourceSheetName(sourceFilePanel.getSheetCombo().getSelectedItem().toString());
         profile.setTargetSheetName(targetFilePanel.getSheetCombo().getSelectedItem().toString());
 
-        // TODO: Get key mappings from the GUI
-        Map<String, String> keyMappings = columnMappingPanel.getColumnMappings();
-        if (keyMappings.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please map at least one key column.", "Key Columns Required", JOptionPane.WARNING_MESSAGE);
+        Map<String, String> mappings = columnMappingPanel.getColumnMappings();
+        List<String> keyColumns = columnMappingPanel.getKeyColumns();
+
+        if (keyColumns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please select at least one 'Is Key' column for row matching.", "No Key Columns Selected", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        profile.setColumnMappings(keyMappings);
-        profile.setKeyColumns(new ArrayList<>(keyMappings.keySet()));
+
+        profile.setColumnMappings(mappings);
+        profile.setKeyColumns(keyColumns);
 
         statusLabel.setText("Running comparison...");
 
-        // 2. Run comparison in a background thread
         new SwingWorker<ComparisonResult, Void>() {
             @Override
             protected ComparisonResult doInBackground() throws Exception {
@@ -270,15 +271,13 @@ public class MainFrame extends JFrame {
     }
 
     private void updateProfileFromGui() {
-        // This method should gather all settings from the UI and update the 'profile' object
         profile.setSourceSheetName(sourceFilePanel.getSheetCombo().getSelectedItem() != null ? sourceFilePanel.getSheetCombo().getSelectedItem().toString() : null);
         profile.setTargetSheetName(targetFilePanel.getSheetCombo().getSelectedItem() != null ? targetFilePanel.getSheetCombo().getSelectedItem().toString() : null);
         profile.setColumnMappings(columnMappingPanel.getColumnMappings());
-        // TODO: Update with other UI controls (headers, keys, rules, etc.)
+        profile.setKeyColumns(columnMappingPanel.getKeyColumns());
     }
 
     private void updateGuiFromProfile(ComparisonProfile loadedProfile) {
-        // This method should take a profile and update the UI controls to match its settings
         sourceFilePanel.getFileField().setText(loadedProfile.getSourceFilePath());
         targetFilePanel.getFileField().setText(loadedProfile.getTargetFilePath());
         profile.setSourceFilePath(loadedProfile.getSourceFilePath());
@@ -289,6 +288,41 @@ public class MainFrame extends JFrame {
 
         populateSheetCombo(targetFilePanel.getSheetCombo(), loadedProfile.getTargetFilePath(), false);
         targetFilePanel.getSheetCombo().setSelectedItem(loadedProfile.getTargetSheetName());
-        // TODO: Update other UI controls
+    }
+
+    private void autoSuggestKeys() {
+        if (profile.getSourceFilePath() == null) {
+            JOptionPane.showMessageDialog(this, "Please load a source file first.", "Source File Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        try {
+            statusLabel.setText("Analyzing source file for key suggestions...");
+            List<List<Object>> data = ExcelReader.read(profile.getSourceFilePath(), profile.getSourceSheetName(), true);
+            List<Object> headers = data.remove(0);
+
+            List<KeySuggester.KeySuggestion> suggestions = KeySuggester.suggestKeys(data, headers);
+
+            KeySuggestionDialog dialog = new KeySuggestionDialog(this, suggestions);
+            dialog.setVisible(true);
+
+            if (dialog.isAccepted()) {
+                List<KeySuggester.KeySuggestion> selected = dialog.getSelectedSuggestions();
+                columnMappingPanel.selectKeys(selected.stream().map(KeySuggester.KeySuggestion::getColumnName).collect(Collectors.toList()));
+            }
+            statusLabel.setText("Ready.");
+        } catch (Exception e) {
+            statusLabel.setText("Error during key suggestion.");
+            JOptionPane.showMessageDialog(this, "Error suggesting keys: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void openFilterBuilder(boolean isSource) {
+        List<String> columns = isSource ? sourceHeaders : targetHeaders;
+        if (columns == null || columns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please load a file and select a sheet first.", "No Columns Found", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        FilterBuilderDialog dialog = new FilterBuilderDialog(this, columns);
+        dialog.setVisible(true);
     }
 }

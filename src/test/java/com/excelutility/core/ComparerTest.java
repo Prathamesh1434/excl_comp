@@ -1,7 +1,6 @@
-package com.excelutility;
+package com.excelutility.core;
 
 import com.excelutility.core.ComparisonProfile;
-import com.excelutility.core.ComparisonResult;
 import com.excelutility.core.ComparisonService;
 import com.excelutility.core.RowComparisonStatus;
 import com.excelutility.core.RowResult;

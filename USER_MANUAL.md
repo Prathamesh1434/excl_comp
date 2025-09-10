@@ -27,20 +27,29 @@ A typical workflow involves these steps:
 
 ## 3. Key Features in Detail
 
+### Column Mapping and Key Selection
+
+This is the most important configuration step. It is done in the **"Column Mappings & Row Matching"** panel.
+
+1.  **Load both your source and target files.** The table in this panel will automatically populate with the columns from your source file.
+2.  **Map Columns**: For each source column, use the dropdown in the "Target Column" cell to select the corresponding column from the target file. The application will try to auto-map columns with the same name.
+3.  **Select Key Columns**: To tell the application how to match rows, you must select at least one key column. Do this by **ticking the "Is Key" checkbox** for each row that should be part of the composite key.
+4.  **View Selected Keys**: The panel on the right, "Selected Keys," will show a clear list of the columns you have chosen as keys.
+5.  **Auto-Suggest Keys**: If you're unsure which columns to use as a key, click the **"Auto-Suggest Keys"** button in the "Source File" panel. The tool will analyze your source data and show you a ranked list of the most unique columns, which are the best candidates for a key.
+
 ### Profile Management
 
--   **Saving a Profile**: After you have configured your file paths, sheet selections, key mappings, and normalization rules, you can save these settings as a profile. Go to **File > Save Profile As...** and provide a name. This saves you from having to re-configure everything for repeated tasks.
--   **Loading a Profile**: To load a previously saved set of configurations, go to **File > Load Profile...** and select a profile from the list. The entire UI will update with the saved settings.
+-   **Saving a Profile**: After you have configured everything (files, sheets, keys, etc.), you can save these settings as a profile. Go to **File > Save Profile As...** and provide a name.
+-   **Loading a Profile**: To load a previously saved set of configurations, go to **File > Load Profile...** and select a profile from the list.
 -   **Profile Manager**: Go to **Edit > Profile Manager...** to view and delete your saved profiles.
 
 ### Test Case Generator
 
-This tool helps you create sample Excel files to test the functionality of the comparator itself.
+This tool helps you create sample Excel files to test the application's features.
 -   Go to **Tools > Generate Test Cases...**.
--   In the dialog, select one or more scenarios you want to create (e.g., "Exact Match", "Numeric Mismatch").
--   Choose the number of rows to generate.
--   Click "Generate". The files will be created in a `target/test-cases` directory inside the application folder.
--   The dialog will show a list of the generated test cases, which you can then load into the main application to see how the comparison works.
+-   Select one or more scenarios to create (e.g., "Exact Match", "Multi-row Headers").
+-   Choose the number of rows to generate and click "Generate".
+-   The files will be created in a `target/test-cases` directory inside the application folder.
 
 ## 4. Understanding the Results
 

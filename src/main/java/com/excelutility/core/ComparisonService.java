@@ -34,7 +34,7 @@ public class ComparisonService {
         return new ComparisonResult(sourceHeaders.stream().map(Object::toString).collect(Collectors.toList()), rowResults);
     }
 
-    public List<RowResult> matchRows(List<List<Object>> sourceRows, List<List<Object>> targetRows, List<Object> sourceHeaders, List<Object> targetHeaders, ComparisonProfile profile) {
+    List<RowResult> matchRows(List<List<Object>> sourceRows, List<List<Object>> targetRows, List<Object> sourceHeaders, List<Object> targetHeaders, ComparisonProfile profile) {
         List<RowResult> results = new ArrayList<>();
 
         if (profile.getRowMatchStrategy() == RowMatchStrategy.BY_PRIMARY_KEY) {
