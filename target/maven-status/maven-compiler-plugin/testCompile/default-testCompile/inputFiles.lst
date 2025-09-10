@@ -1,4 +1,5 @@
-/app/src/test/java/com/excelcomparator/ComparerTest.java
-/app/src/test/java/com/excelcomparator/NormalizerTest.java
-/app/src/test/java/com/excelcomparator/ExcelReaderTest.java
-/app/src/test/java/com/excelcomparator/ExcelWriterTest.java
+/app/src/test/java/com/excelutility/ComparerTest.java
+/app/src/test/java/com/excelutility/NormalizerTest.java
+/app/src/test/java/com/excelutility/ProfileServiceTest.java
+/app/src/test/java/com/excelutility/SimpleExcelWriterTest.java
+/app/src/test/java/com/excelutility/ExcelReaderTest.java
