@@ -137,7 +137,9 @@ public class MainFrame extends JFrame {
 
     private void selectFile(boolean isSource) {
         JFileChooser chooser = new JFileChooser();
-        chooser.setFileFilter(new FileNameExtensionFilter("Excel Files", "xls", "xlsx"));
+        FileNameExtensionFilter excelFilter = new FileNameExtensionFilter("Excel Files (*.xls, *.xlsx)", "xls", "xlsx");
+        chooser.addChoosableFileFilter(excelFilter);
+        chooser.setFileFilter(excelFilter);
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile();
             FileConfigPanel panel = isSource ? sourceFilePanel : targetFilePanel;
