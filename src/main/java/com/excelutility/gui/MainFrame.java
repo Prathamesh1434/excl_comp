@@ -18,9 +18,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MainFrame extends JFrame {
 
+    private static final Logger logger = LoggerFactory.getLogger(MainFrame.class);
     private final ComparisonProfile profile = new ComparisonProfile();
     private final ComparisonService comparisonService = new ComparisonService();
     private final ProfileService profileService = new ProfileService("profiles");
@@ -149,12 +152,8 @@ public class MainFrame extends JFrame {
         // --- Action Listeners ---
         sourceFilePanel.getAutoSuggestButton().addActionListener(e -> autoSuggestKeys(true));
         targetFilePanel.getAutoSuggestButton().addActionListener(e -> autoSuggestKeys(false));
-        // Note: FilterButton listener is now handled within FileConfigPanel itself.
-
         sourceFilePanel.getPreviewButton().addActionListener(e -> showPreview(true));
         targetFilePanel.getPreviewButton().addActionListener(e -> showPreview(false));
-
-        // Listener to reload headers when a new sheet is selected
         sourceFilePanel.getSheetCombo().addActionListener(e -> {
             if (e.getActionCommand().equals("comboBoxChanged") && sourceFilePanel.getSheetCombo().getSelectedItem() != null) {
                 loadHeaders(true);
@@ -181,9 +180,8 @@ public class MainFrame extends JFrame {
             if (sheet == null) return;
 
             List<Integer> headerRows = panel.getHeaderRowIndices();
-            // If no multi-row headers are detected/set, fall back to single header row logic
             if (headerRows == null || headerRows.isEmpty()) {
-                headerRows = java.util.Collections.singletonList(0); // Default to first row
+                headerRows = java.util.Collections.singletonList(0);
             }
 
             List<String> canonicalHeaders = com.excelutility.core.CanonicalNameBuilder.buildCanonicalHeaders(
@@ -204,31 +202,33 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void runComparison() {
+    private boolean validateGuiBeforeRun() {
+        if (sourceFilePanel.getFilePath().trim().isEmpty() || targetFilePanel.getFilePath().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Both Source and Target files must be selected.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
         if (sourceFilePanel.getSelectedSheet() == null || targetFilePanel.getSelectedSheet() == null) {
-            JOptionPane.showMessageDialog(this, "Please select a sheet for both files.", "Sheet Not Selected", JOptionPane.WARNING_MESSAGE);
-            return;
+            JOptionPane.showMessageDialog(this, "A sheet must be selected for both files.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return false;
         }
-        profile.setSourceFilePath(sourceFilePanel.getFilePath());
-        profile.setSourceSheetName(sourceFilePanel.getSelectedSheet());
-        profile.setSourceFilterGroup(sourceFilePanel.getActiveFilterGroup());
+        if (columnMappingPanel.getKeyColumns().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "At least one key column must be selected in the 'Column Mappings' panel.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+        return true;
+    }
 
-        profile.setTargetFilePath(targetFilePanel.getFilePath());
-        profile.setTargetSheetName(targetFilePanel.getSelectedSheet());
-        profile.setTargetFilterGroup(targetFilePanel.getActiveFilterGroup());
-
-        Map<String, String> mappings = columnMappingPanel.getColumnMappings();
-        List<String> keyColumns = columnMappingPanel.getKeyColumns();
-
-        if (keyColumns.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please select at least one 'Is Key' column for row matching.", "No Key Columns Selected", JOptionPane.WARNING_MESSAGE);
-            return;
+    private void runComparison() {
+        if (!validateGuiBeforeRun()) {
+            return; // Stop if validation fails
         }
 
-        profile.setColumnMappings(mappings);
-        profile.setKeyColumns(keyColumns);
+        updateProfileFromGui();
 
+        logger.info("Starting comparison with profile: {}", profile);
         statusLabel.setText("Running comparison...");
+        summaryPanel.clearSummary();
+        resultsTableModel.clear();
 
         new SwingWorker<ComparisonResult, Void>() {
             @Override
@@ -242,11 +242,13 @@ public class MainFrame extends JFrame {
                     ComparisonResult result = get();
                     resultsTableModel.setComparisonResult(result);
                     summaryPanel.updateSummary(result.getStats());
-                    statusLabel.setText("Comparison complete. " + result.getStats().matchedMismatched + " mismatches found.");
+                    statusLabel.setText("Comparison complete. Found " + result.getStats().matchedMismatched + " mismatches and " + (result.getStats().sourceOnly + result.getStats().targetOnly) + " unmatched rows.");
                 } catch (Exception e) {
                     statusLabel.setText("Error during comparison.");
-                    JOptionPane.showMessageDialog(MainFrame.this, "An error occurred: " + e.getMessage(), "Comparison Error", JOptionPane.ERROR_MESSAGE);
-                    e.printStackTrace();
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    logger.error("Comparison failed with exception.", cause);
+                    ErrorDialog dialog = new ErrorDialog(MainFrame.this, "Comparison Failed", cause.getMessage(), cause);
+                    dialog.setVisible(true);
                 }
             }
         }.execute();
@@ -282,13 +284,11 @@ public class MainFrame extends JFrame {
                         return;
                     }
 
-                    // First row is the header
                     Vector<String> headers = new Vector<>();
                     for (Object header : previewData.get(0)) {
                         headers.add(header != null ? header.toString() : "");
                     }
 
-                    // The rest of the rows are data
                     Vector<Vector<Object>> data = new Vector<>();
                     if (previewData.size() > 1) {
                         for (int i = 1; i < previewData.size(); i++) {
@@ -318,10 +318,10 @@ public class MainFrame extends JFrame {
     }
 
     private void saveProfile() {
+        updateProfileFromGui();
         String profileName = JOptionPane.showInputDialog(this, "Enter a name for this profile:", "Save Profile", JOptionPane.PLAIN_MESSAGE);
         if (profileName != null && !profileName.trim().isEmpty()) {
             try {
-                updateProfileFromGui();
                 profileService.saveProfile(profile, profileName);
                 JOptionPane.showMessageDialog(this, "Profile saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException e) {
@@ -362,19 +362,18 @@ public class MainFrame extends JFrame {
         profile.setTargetHeaderRows(targetFilePanel.getHeaderRowIndices());
         profile.setSourceConcatenationMode(sourceFilePanel.getConcatenationMode());
         profile.setTargetConcatenationMode(targetFilePanel.getConcatenationMode());
+        profile.setSourceFilterGroup(sourceFilePanel.getActiveFilterGroup());
+        profile.setTargetFilterGroup(targetFilePanel.getActiveFilterGroup());
     }
 
     private void updateGuiFromProfile(ComparisonProfile loadedProfile) {
         sourceFilePanel.setFilePath(loadedProfile.getSourceFilePath());
         targetFilePanel.setFilePath(loadedProfile.getTargetFilePath());
 
-        // The setFilePath method populates the sheet combo. We just need to set the selected item.
-        // A short delay might be needed if sheet loading is slow, but we'll try without first.
         SwingUtilities.invokeLater(() -> {
             sourceFilePanel.setSelectedSheet(loadedProfile.getSourceSheetName());
             targetFilePanel.setSelectedSheet(loadedProfile.getTargetSheetName());
 
-            // Manually trigger header loading after profile is loaded
             if (loadedProfile.getSourceSheetName() != null) {
                 loadHeaders(true);
             }
@@ -382,7 +381,6 @@ public class MainFrame extends JFrame {
                 loadHeaders(false);
             }
 
-            // Update the column mapping panel with the loaded settings
             if (this.sourceHeaders != null && this.targetHeaders != null &&
                 loadedProfile.getColumnMappings() != null && loadedProfile.getKeyColumns() != null) {
                 columnMappingPanel.setMappings(loadedProfile.getColumnMappings(), loadedProfile.getKeyColumns());
@@ -418,7 +416,7 @@ public class MainFrame extends JFrame {
         try {
             statusLabel.setText("Analyzing file for key suggestions...");
             List<List<Object>> data = ExcelReader.read(filePath, sheetName, true);
-            if (data.size() < 2) { // Need header + at least one data row
+            if (data.size() < 2) {
                 statusLabel.setText("Not enough data to suggest keys.");
                 return;
             }
@@ -437,7 +435,6 @@ public class MainFrame extends JFrame {
                 if (isSource) {
                     columnMappingPanel.selectKeys(selectedKeys);
                 } else {
-                    // This method needs to be created in ColumnMappingPanel
                     columnMappingPanel.selectKeysFromTarget(selectedKeys);
                 }
             }
@@ -480,7 +477,7 @@ public class MainFrame extends JFrame {
                 @Override
                 protected void done() {
                     try {
-                        get(); // Check for exceptions
+                        get();
                         statusLabel.setText("Results exported successfully.");
                         JOptionPane.showMessageDialog(MainFrame.this, "Results exported successfully to:\n" + finalFilePath, "Export Complete", JOptionPane.INFORMATION_MESSAGE);
                     } catch (Exception e) {

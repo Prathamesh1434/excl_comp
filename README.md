@@ -55,3 +55,12 @@ mvn test
 -   **Project Structure**: The project is organized into `gui`, `core`, `io`, `excel`, and `test` packages.
 -   **Profiles**: Profiles are saved as `.json` files in a `profiles/` directory created where the application is run.
 -   **Test Cases**: Generated test cases are saved to the `target/test-cases/` directory.
+
+## Troubleshooting
+
+If a comparison fails, the application will no longer crash. Instead, it will display a "Comparison Failed" dialog with a user-friendly error message.
+
+If you need to report a bug, please include the full details from this dialog:
+1.  Click the **"Details"** button to expand the dialog and show the full technical error message and stack trace.
+2.  Click the **"Copy to Clipboard"** button.
+3.  Paste the copied details into your bug report. This provides crucial information for debugging the issue.

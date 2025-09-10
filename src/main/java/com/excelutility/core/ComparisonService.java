@@ -13,12 +13,15 @@ import java.util.stream.Collectors;
  */
 public class ComparisonService {
 
-    public ComparisonResult compare(ComparisonProfile profile) throws Exception {
-        // 1. Read all data from files
-        List<List<Object>> sourceData = ExcelReader.read(profile.getSourceFilePath(), profile.getSourceSheetName(), profile.isUseStreaming());
-        List<List<Object>> targetData = ExcelReader.read(profile.getTargetFilePath(), profile.getTargetSheetName(), profile.isUseStreaming());
+    public ComparisonResult compare(ComparisonProfile profile) throws ComparisonException {
+        validateProfile(profile);
 
-        List<String> sourceHeaders;
+        try {
+            // 1. Read all data from files
+            List<List<Object>> sourceData = ExcelReader.read(profile.getSourceFilePath(), profile.getSourceSheetName(), profile.isUseStreaming());
+            List<List<Object>> targetData = ExcelReader.read(profile.getTargetFilePath(), profile.getTargetSheetName(), profile.isUseStreaming());
+
+            List<String> sourceHeaders;
         List<String> targetHeaders;
         List<List<Object>> sourceRows;
         List<List<Object>> targetRows;
@@ -53,6 +56,39 @@ public class ComparisonService {
 
         // 5. Create final report
         return new ComparisonResult(sourceHeaders, rowResults);
+        } catch (Exception e) {
+            // Wrap any other unexpected exception
+            throw new ComparisonException("An unexpected error occurred during comparison: " + e.getMessage(), e);
+        }
+    }
+
+    void validateProfile(ComparisonProfile profile) throws ComparisonException {
+        if (profile == null) {
+            throw new ComparisonException("Comparison profile is missing.");
+        }
+        if (profile.getSourceFilePath() == null || profile.getSourceFilePath().trim().isEmpty()) {
+            throw new ComparisonException("Source file path is not set.");
+        }
+        if (profile.getTargetFilePath() == null || profile.getTargetFilePath().trim().isEmpty()) {
+            throw new ComparisonException("Target file path is not set.");
+        }
+        if (profile.getSourceSheetName() == null || profile.getSourceSheetName().trim().isEmpty()) {
+            throw new ComparisonException("Source sheet name is not set.");
+        }
+        if (profile.getTargetSheetName() == null || profile.getTargetSheetName().trim().isEmpty()) {
+            throw new ComparisonException("Target sheet name is not set.");
+        }
+        if (profile.getKeyColumns() == null || profile.getKeyColumns().isEmpty()) {
+            throw new ComparisonException("At least one key column must be selected for comparison.");
+        }
+        if (profile.getColumnMappings() == null) {
+            throw new ComparisonException("Column mappings are not set.");
+        }
+        for (String keyColumn : profile.getKeyColumns()) {
+            if (!profile.getColumnMappings().containsKey(keyColumn)) {
+                throw new ComparisonException("Key column '" + keyColumn + "' is not present in the column mappings.");
+            }
+        }
     }
 
     List<RowResult> matchRows(List<List<Object>> sourceRows, List<List<Object>> targetRows, List<Object> sourceHeaders, List<Object> targetHeaders, ComparisonProfile profile) {
