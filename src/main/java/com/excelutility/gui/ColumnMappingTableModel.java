@@ -16,9 +16,10 @@ public class ColumnMappingTableModel extends AbstractTableModel {
     public void setSourceColumns(List<String> sourceColumns, List<String> targetColumns) {
         data.clear();
         for (String sourceCol : sourceColumns) {
-            // Basic auto-mapping
+            // Enhanced auto-mapping: trim whitespace and ignore case
+            String finalSourceCol = sourceCol.trim();
             String targetCol = targetColumns.stream()
-                    .filter(t -> t.equalsIgnoreCase(sourceCol))
+                    .filter(t -> t.trim().equalsIgnoreCase(finalSourceCol))
                     .findFirst()
                     .orElse(null);
             data.add(new Object[]{sourceCol, targetCol, false, false});

@@ -30,6 +30,7 @@ public class MainFrame extends JFrame {
     private final ColumnMappingPanel columnMappingPanel;
     private final JTable resultsTable;
     private final ResultTableModel resultsTableModel;
+    private final SummaryPanel summaryPanel;
     private final JLabel statusLabel;
 
     private final DefaultTableModel sourcePreviewModel;
@@ -125,12 +126,16 @@ public class MainFrame extends JFrame {
         resultsTableModel = new ResultTableModel();
         resultsTable = new JTable(resultsTableModel);
         resultsTable.setDefaultRenderer(Object.class, new ResultTableRenderer());
-        JPanel resultsPanel = new JPanel(new MigLayout("fill", "[grow]", "[grow]"));
-        resultsPanel.setBorder(BorderFactory.createTitledBorder("Comparison Results"));
-        resultsPanel.add(new JScrollPane(resultsTable), "grow");
+        JScrollPane resultsScrollPane = new JScrollPane(resultsTable);
+        resultsScrollPane.setBorder(BorderFactory.createTitledBorder("Comparison Results"));
+
+        summaryPanel = new SummaryPanel();
+
+        JSplitPane bottomSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, resultsScrollPane, summaryPanel);
+        bottomSplit.setResizeWeight(0.8);
 
         centerSplit.setTopComponent(topSplit);
-        centerSplit.setBottomComponent(resultsPanel);
+        centerSplit.setBottomComponent(bottomSplit);
 
         mainPanel.add(centerSplit, "grow");
         add(mainPanel, BorderLayout.CENTER);
@@ -142,9 +147,9 @@ public class MainFrame extends JFrame {
         add(statusPanel, BorderLayout.SOUTH);
 
         // --- Action Listeners ---
-        sourceFilePanel.getAutoSuggestButton().addActionListener(e -> autoSuggestKeys());
-        sourceFilePanel.getFilterButton().addActionListener(e -> openFilterBuilder(true));
-        targetFilePanel.getFilterButton().addActionListener(e -> openFilterBuilder(false));
+        sourceFilePanel.getAutoSuggestButton().addActionListener(e -> autoSuggestKeys(true));
+        targetFilePanel.getAutoSuggestButton().addActionListener(e -> autoSuggestKeys(false));
+        // Note: FilterButton listener is now handled within FileConfigPanel itself.
 
         sourceFilePanel.getPreviewButton().addActionListener(e -> showPreview(true));
         targetFilePanel.getPreviewButton().addActionListener(e -> showPreview(false));
@@ -195,8 +200,11 @@ public class MainFrame extends JFrame {
         }
         profile.setSourceFilePath(sourceFilePanel.getFilePath());
         profile.setSourceSheetName(sourceFilePanel.getSelectedSheet());
+        profile.setSourceFilterGroup(sourceFilePanel.getActiveFilterGroup());
+
         profile.setTargetFilePath(targetFilePanel.getFilePath());
         profile.setTargetSheetName(targetFilePanel.getSelectedSheet());
+        profile.setTargetFilterGroup(targetFilePanel.getActiveFilterGroup());
 
         Map<String, String> mappings = columnMappingPanel.getColumnMappings();
         List<String> keyColumns = columnMappingPanel.getKeyColumns();
@@ -222,6 +230,7 @@ public class MainFrame extends JFrame {
                 try {
                     ComparisonResult result = get();
                     resultsTableModel.setComparisonResult(result);
+                    summaryPanel.updateSummary(result.getStats());
                     statusLabel.setText("Comparison complete. " + result.getStats().matchedMismatched + " mismatches found.");
                 } catch (Exception e) {
                     statusLabel.setText("Error during comparison.");
@@ -365,18 +374,19 @@ public class MainFrame extends JFrame {
         });
     }
 
-    private void autoSuggestKeys() {
-        String sourcePath = sourceFilePanel.getFilePath();
-        String sourceSheet = sourceFilePanel.getSelectedSheet();
+    private void autoSuggestKeys(boolean isSource) {
+        FileConfigPanel panel = isSource ? sourceFilePanel : targetFilePanel;
+        String filePath = panel.getFilePath();
+        String sheetName = panel.getSelectedSheet();
 
-        if (sourcePath == null || sourcePath.trim().isEmpty() || sourceSheet == null) {
-            JOptionPane.showMessageDialog(this, "Please load a source file and select a sheet first.", "Source File Required", JOptionPane.WARNING_MESSAGE);
+        if (filePath == null || filePath.trim().isEmpty() || sheetName == null) {
+            JOptionPane.showMessageDialog(this, "Please load a file and select a sheet first.", "File Required", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         try {
-            statusLabel.setText("Analyzing source file for key suggestions...");
-            List<List<Object>> data = ExcelReader.read(sourcePath, sourceSheet, true);
+            statusLabel.setText("Analyzing file for key suggestions...");
+            List<List<Object>> data = ExcelReader.read(filePath, sheetName, true);
             if (data.size() < 2) { // Need header + at least one data row
                 statusLabel.setText("Not enough data to suggest keys.");
                 return;
@@ -392,7 +402,13 @@ public class MainFrame extends JFrame {
                 List<String> selectedKeys = dialog.getSelectedSuggestions().stream()
                         .map(KeySuggester.KeySuggestion::getColumnName)
                         .collect(Collectors.toList());
-                columnMappingPanel.selectKeys(selectedKeys);
+
+                if (isSource) {
+                    columnMappingPanel.selectKeys(selectedKeys);
+                } else {
+                    // This method needs to be created in ColumnMappingPanel
+                    columnMappingPanel.selectKeysFromTarget(selectedKeys);
+                }
             }
             statusLabel.setText("Ready.");
         } catch (Exception e) {
@@ -400,16 +416,6 @@ public class MainFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "Error suggesting keys: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
         }
-    }
-
-    private void openFilterBuilder(boolean isSource) {
-        List<String> columns = isSource ? sourceHeaders : targetHeaders;
-        if (columns == null || columns.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please load a file and select a sheet first.", "No Columns Found", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        FilterBuilderDialog dialog = new FilterBuilderDialog(this, columns);
-        dialog.setVisible(true);
     }
 
     private void exportResults() {

@@ -105,4 +105,27 @@ public class ColumnMappingPanel extends JPanel {
         tableModel.setMappings(mappings, keyColumns);
         updateKeyList(); // This will refresh the JList on the side
     }
+
+    public void selectKeysFromTarget(List<String> targetKeyNames) {
+        // First, get the current mapping from target to source
+        Map<String, String> targetToSourceMap = new HashMap<>();
+        for (Object[] rowData : tableModel.getMappingData()) {
+            if (rowData[1] != null && !rowData[1].toString().isEmpty()) {
+                targetToSourceMap.put(rowData[1].toString(), rowData[0].toString());
+            }
+        }
+
+        // Now, find the corresponding source keys
+        List<String> sourceKeysToSelect = new ArrayList<>();
+        for (String targetKey : targetKeyNames) {
+            if (targetToSourceMap.containsKey(targetKey)) {
+                sourceKeysToSelect.add(targetToSourceMap.get(targetKey));
+            }
+        }
+
+        // Use the existing selectKeys method to update the UI
+        if (!sourceKeysToSelect.isEmpty()) {
+            this.selectKeys(sourceKeysToSelect);
+        }
+    }
 }

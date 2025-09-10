@@ -21,11 +21,19 @@ public class ComparisonService {
         // TODO: Apply normalization from profile
 
         // For now, assume headers are the first row
-        List<Object> sourceHeaders = sourceData.get(0);
-        List<Object> targetHeaders = targetData.get(0);
+        List<Object> sourceHeaders = sourceData.isEmpty() ? new ArrayList<>() : sourceData.get(0);
+        List<Object> targetHeaders = targetData.isEmpty() ? new ArrayList<>() : targetData.get(0);
 
-        List<List<Object>> sourceRows = sourceData.subList(1, sourceData.size());
-        List<List<Object>> targetRows = targetData.subList(1, targetData.size());
+        List<List<Object>> sourceRows = sourceData.isEmpty() ? new ArrayList<>() : sourceData.subList(1, sourceData.size());
+        List<List<Object>> targetRows = targetData.isEmpty() ? new ArrayList<>() : targetData.subList(1, targetData.size());
+
+        // 1a. Apply filters if they exist
+        if (profile.getSourceFilterGroup() != null) {
+            sourceRows = applyFilter(sourceRows, sourceHeaders, profile.getSourceFilterGroup());
+        }
+        if (profile.getTargetFilterGroup() != null) {
+            targetRows = applyFilter(targetRows, targetHeaders, profile.getTargetFilterGroup());
+        }
 
         // 2. Perform row matching
         List<RowResult> rowResults = matchRows(sourceRows, targetRows, sourceHeaders, targetHeaders, profile);
@@ -173,5 +181,90 @@ public class ComparisonService {
             map.put(String.join("||", keyParts), row);
         }
         return map;
+    }
+
+    private List<List<Object>> applyFilter(List<List<Object>> rows, List<Object> headers, FilterGroup filterGroup) {
+        if (filterGroup == null || (filterGroup.getConditions().isEmpty() && filterGroup.getGroups().isEmpty())) {
+            return rows;
+        }
+        return rows.stream()
+                .filter(row -> doesRowMatch(row, headers, filterGroup))
+                .collect(Collectors.toList());
+    }
+
+    private boolean doesRowMatch(List<Object> row, List<Object> headers, FilterGroup group) {
+        // Evaluate conditions in the current group
+        List<Boolean> conditionResults = group.getConditions().stream()
+                .map(condition -> isConditionMet(row, headers, condition))
+                .collect(Collectors.toList());
+
+        // Evaluate subgroups recursively
+        List<Boolean> groupResults = group.getGroups().stream()
+                .map(subgroup -> doesRowMatch(row, headers, subgroup))
+                .collect(Collectors.toList());
+
+        List<Boolean> allResults = new ArrayList<>();
+        allResults.addAll(conditionResults);
+        allResults.addAll(groupResults);
+
+        if (allResults.isEmpty()) {
+            return true; // An empty filter group matches everything.
+        }
+
+        if (group.getOperator() == FilterGroup.LogicalOperator.AND) {
+            return allResults.stream().allMatch(b -> b);
+        } else { // OR
+            return allResults.stream().anyMatch(b -> b);
+        }
+    }
+
+    private boolean isConditionMet(List<Object> row, List<Object> headers, FilterCondition condition) {
+        int colIndex = headers.indexOf(condition.getColumnName());
+        if (colIndex == -1) return false; // Column not found
+
+        Object cellValue = (colIndex < row.size()) ? row.get(colIndex) : null;
+
+        String cellValueStr = (cellValue == null) ? null : cellValue.toString();
+        String conditionValueStr = (condition.getValue() == null) ? null : condition.getValue().toString();
+
+        if (condition.isCaseInsensitive() && cellValueStr != null && conditionValueStr != null) {
+            cellValueStr = cellValueStr.toLowerCase();
+            conditionValueStr = conditionValueStr.toLowerCase();
+        }
+
+        switch (condition.getOperator()) {
+            case IS_NULL:
+                return cellValueStr == null || cellValueStr.trim().isEmpty();
+            case IS_NOT_NULL:
+                return cellValueStr != null && !cellValueStr.trim().isEmpty();
+            case EQUALS:
+                return Objects.equals(cellValueStr, conditionValueStr);
+            case NOT_EQUALS:
+                return !Objects.equals(cellValueStr, conditionValueStr);
+            case CONTAINS:
+                return cellValueStr != null && conditionValueStr != null && cellValueStr.contains(conditionValueStr);
+            case NOT_CONTAINS:
+                return cellValueStr == null || conditionValueStr == null || !cellValueStr.contains(conditionValueStr);
+            case STARTS_WITH:
+                return cellValueStr != null && conditionValueStr != null && cellValueStr.startsWith(conditionValueStr);
+            case ENDS_WITH:
+                return cellValueStr != null && conditionValueStr != null && cellValueStr.endsWith(conditionValueStr);
+            // Basic numeric comparisons
+            case GREATER_THAN:
+                try {
+                    double cellNum = Double.parseDouble(cellValueStr);
+                    double conditionNum = Double.parseDouble(conditionValueStr);
+                    return cellNum > conditionNum;
+                } catch (Exception e) { return false; }
+            case LESS_THAN:
+                try {
+                    double cellNum = Double.parseDouble(cellValueStr);
+                    double conditionNum = Double.parseDouble(conditionValueStr);
+                    return cellNum < conditionNum;
+                } catch (Exception e) { return false; }
+            // TODO: Implement other operators like IN_LIST, REGEX, BETWEEN
+            default:
+                return false;
+        }
     }
 }
