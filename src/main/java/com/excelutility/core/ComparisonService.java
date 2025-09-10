@@ -72,25 +72,62 @@ public class ComparisonService {
 
         for (Map.Entry<String, String> mapping : mappings.entrySet()) {
             String sourceColName = mapping.getKey();
-            String targetColName = mapping.getValue();
+
+            // Don't compare key columns, they are already known to match
+            if (profile.getKeyColumns().contains(sourceColName)) {
+                continue;
+            }
 
             int sourceColIndex = sourceHeaders.indexOf(sourceColName);
-            int targetColIndex = targetHeaders.indexOf(targetColName);
+            int targetColIndex = targetHeaders.indexOf(mapping.getValue());
 
             if (sourceColIndex == -1 || targetColIndex == -1) continue;
 
-            Object sourceVal = sourceColIndex < sourceRow.size() ? sourceRow.get(sourceColIndex) : null;
-            Object targetVal = targetColIndex < targetRow.size() ? targetRow.get(targetColIndex) : null;
+            Object sourceVal = sourceColIndex < sourceRow.size() ? sourceRow.get(sourceColIndex) : "";
+            Object targetVal = targetColIndex < targetRow.size() ? targetRow.get(targetColIndex) : "";
 
-            // Apply global normalization rules
-            String normSourceVal = normalize(sourceVal, profile);
-            String normTargetVal = normalize(targetVal, profile);
+            boolean sourceIsBlank = (sourceVal == null || sourceVal.toString().trim().isEmpty());
+            boolean targetIsBlank = (targetVal == null || targetVal.toString().trim().isEmpty());
 
-            if (!Objects.equals(normSourceVal, normTargetVal)) {
-                differences.put(sourceColIndex, new CellDifference(sourceVal, targetVal, normSourceVal, normTargetVal, "Value mismatch"));
+            if (sourceIsBlank && targetIsBlank) continue;
+
+            if (sourceIsBlank || targetIsBlank) {
+                differences.put(sourceColIndex, new CellDifference(sourceColName, sourceVal, targetVal, MismatchType.BLANK_VS_NON_BLANK));
+                continue;
+            }
+
+            boolean sourceIsNumeric = isNumeric(sourceVal.toString());
+            boolean targetIsNumeric = isNumeric(targetVal.toString());
+
+            if (sourceIsNumeric && targetIsNumeric) {
+                double sourceNum = Double.parseDouble(sourceVal.toString());
+                double targetNum = Double.parseDouble(targetVal.toString());
+                if (Math.abs(sourceNum - targetNum) > 1e-9) { // Tolerance for float comparison
+                    differences.put(sourceColIndex, new CellDifference(sourceColName, sourceVal, targetVal, MismatchType.NUMERIC));
+                }
+            } else if (sourceIsNumeric || targetIsNumeric) {
+                differences.put(sourceColIndex, new CellDifference(sourceColName, sourceVal, targetVal, MismatchType.TYPE_MISMATCH));
+            } else {
+                String normSourceVal = normalize(sourceVal, profile);
+                String normTargetVal = normalize(targetVal, profile);
+                if (!normSourceVal.equals(normTargetVal)) {
+                    differences.put(sourceColIndex, new CellDifference(sourceColName, sourceVal, targetVal, MismatchType.STRING));
+                }
             }
         }
         return differences;
+    }
+
+    private static boolean isNumeric(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            Double.parseDouble(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private String normalize(Object value, ComparisonProfile profile) {

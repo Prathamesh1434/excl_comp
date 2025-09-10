@@ -30,6 +30,19 @@ public class ColumnMappingTableModel extends AbstractTableModel {
         return data;
     }
 
+    public void setMappings(Map<String, String> mappings, List<String> keyColumns) {
+        for (Object[] rowData : data) {
+            String sourceColumn = (String) rowData[0];
+
+            // Set the target column from the loaded profile's mappings
+            rowData[1] = mappings.getOrDefault(sourceColumn, null);
+
+            // Set the "Is Key" status from the loaded profile's key columns
+            rowData[2] = keyColumns.contains(sourceColumn);
+        }
+        fireTableDataChanged();
+    }
+
     @Override
     public int getRowCount() {
         return data.size();

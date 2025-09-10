@@ -100,4 +100,9 @@ public class ColumnMappingPanel extends JPanel {
             tableModel.setValueAt(shouldBeSelected, i, 2); // Column 2 is "Is Key"
         }
     }
+
+    public void setMappings(Map<String, String> mappings, List<String> keyColumns) {
+        tableModel.setMappings(mappings, keyColumns);
+        updateKeyList(); // This will refresh the JList on the side
+    }
 }

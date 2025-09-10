@@ -17,6 +17,7 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 
 import java.io.InputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -141,5 +142,73 @@ public class ExcelReader {
             }
         }
         return sheetNames;
+    }
+
+    public static List<List<Object>> readPreview(String filePath, String sheetName, int rowLimit) throws IOException {
+        List<List<Object>> data = new ArrayList<>();
+        try (FileInputStream fis = new FileInputStream(filePath);
+             Workbook workbook = WorkbookFactory.create(fis)) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            if (sheet == null) {
+                throw new IOException("Sheet '" + sheetName + "' not found in the workbook.");
+            }
+
+            int lastRow = Math.min(sheet.getLastRowNum(), rowLimit - 1);
+            int maxCols = 0;
+
+            // First pass to find the max number of columns in the preview range
+            for (int i = 0; i <= lastRow; i++) {
+                Row row = sheet.getRow(i);
+                if (row != null) {
+                    maxCols = Math.max(maxCols, row.getLastCellNum());
+                }
+            }
+
+            // Second pass to read data
+            for (int i = 0; i <= lastRow; i++) {
+                Row row = sheet.getRow(i);
+                List<Object> rowData = new ArrayList<>();
+                for (int j = 0; j < maxCols; j++) {
+                    if (row == null) {
+                        rowData.add("");
+                        continue;
+                    }
+                    Cell cell = row.getCell(j, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    if (cell == null) {
+                        rowData.add("");
+                        continue;
+                    }
+                    switch (cell.getCellType()) {
+                        case STRING:
+                            rowData.add(cell.getStringCellValue());
+                            break;
+                        case NUMERIC:
+                            if (DateUtil.isCellDateFormatted(cell)) {
+                                rowData.add(cell.getDateCellValue().toString());
+                            } else {
+                                rowData.add(new DataFormatter().formatCellValue(cell));
+                            }
+                            break;
+                        case BOOLEAN:
+                            rowData.add(cell.getBooleanCellValue());
+                            break;
+                        case FORMULA:
+                             try {
+                                rowData.add(new DataFormatter().formatCellValue(cell, workbook.getCreationHelper().createFormulaEvaluator()));
+                            } catch (Exception e) {
+                                rowData.add("!FORMULA_ERROR!");
+                            }
+                            break;
+                        case BLANK:
+                            rowData.add("");
+                            break;
+                        default:
+                            rowData.add("!UNSUPPORTED_TYPE!");
+                    }
+                }
+                data.add(rowData);
+            }
+        }
+        return data;
     }
 }

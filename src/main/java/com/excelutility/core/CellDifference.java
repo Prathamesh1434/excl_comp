@@ -1,27 +1,45 @@
 package com.excelutility.core;
 
 /**
- * A data class representing the difference between two cells.
+ * Represents the difference found in a single cell between two matched rows.
+ * This version is designed to support typed mismatches for color-coding.
  */
 public class CellDifference {
+    private final String columnName;
     private final Object sourceValue;
     private final Object targetValue;
-    private final Object normalizedSourceValue;
-    private final Object normalizedTargetValue;
-    private final String notes; // e.g., "Within tolerance", "Case mismatch"
+    private final MismatchType mismatchType;
 
-    public CellDifference(Object sourceValue, Object targetValue, Object normalizedSourceValue, Object normalizedTargetValue, String notes) {
+    public CellDifference(String columnName, Object sourceValue, Object targetValue, MismatchType mismatchType) {
+        this.columnName = columnName;
         this.sourceValue = sourceValue;
         this.targetValue = targetValue;
-        this.normalizedSourceValue = normalizedSourceValue;
-        this.normalizedTargetValue = normalizedTargetValue;
-        this.notes = notes;
+        this.mismatchType = mismatchType;
     }
 
-    // Getters
-    public Object getSourceValue() { return sourceValue; }
-    public Object getTargetValue() { return targetValue; }
-    public Object getNormalizedSourceValue() { return normalizedSourceValue; }
-    public Object getNormalizedTargetValue() { return normalizedTargetValue; }
-    public String getNotes() { return notes; }
+    public String getColumnName() {
+        return columnName;
+    }
+
+    public Object getSourceValue() {
+        return sourceValue;
+    }
+
+    public Object getTargetValue() {
+        return targetValue;
+    }
+
+    public MismatchType getMismatchType() {
+        return mismatchType;
+    }
+
+    @Override
+    public String toString() {
+        return "CellDifference{" +
+                "columnName='" + columnName + '\'' +
+                ", sourceValue=" + sourceValue +
+                ", targetValue=" + targetValue +
+                ", mismatchType=" + mismatchType +
+                '}';
+    }
 }
