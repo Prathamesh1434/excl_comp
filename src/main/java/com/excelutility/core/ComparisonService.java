@@ -14,32 +14,45 @@ import java.util.stream.Collectors;
 public class ComparisonService {
 
     public ComparisonResult compare(ComparisonProfile profile) throws Exception {
-        // 1. Read data from files
+        // 1. Read all data from files
         List<List<Object>> sourceData = ExcelReader.read(profile.getSourceFilePath(), profile.getSourceSheetName(), profile.isUseStreaming());
         List<List<Object>> targetData = ExcelReader.read(profile.getTargetFilePath(), profile.getTargetSheetName(), profile.isUseStreaming());
 
-        // TODO: Apply normalization from profile
+        List<String> sourceHeaders;
+        List<String> targetHeaders;
+        List<List<Object>> sourceRows;
+        List<List<Object>> targetRows;
 
-        // For now, assume headers are the first row
-        List<Object> sourceHeaders = sourceData.isEmpty() ? new ArrayList<>() : sourceData.get(0);
-        List<Object> targetHeaders = targetData.isEmpty() ? new ArrayList<>() : targetData.get(0);
+        // 2. Build headers and identify data rows
+        try (org.apache.poi.ss.usermodel.Workbook sourceWorkbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(new java.io.File(profile.getSourceFilePath()));
+             org.apache.poi.ss.usermodel.Workbook targetWorkbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(new java.io.File(profile.getTargetFilePath()))) {
 
-        List<List<Object>> sourceRows = sourceData.isEmpty() ? new ArrayList<>() : sourceData.subList(1, sourceData.size());
-        List<List<Object>> targetRows = targetData.isEmpty() ? new ArrayList<>() : targetData.subList(1, targetData.size());
+            org.apache.poi.ss.usermodel.Sheet sourceSheet = sourceWorkbook.getSheet(profile.getSourceSheetName());
+            org.apache.poi.ss.usermodel.Sheet targetSheet = targetWorkbook.getSheet(profile.getTargetSheetName());
 
-        // 1a. Apply filters if they exist
+            sourceHeaders = CanonicalNameBuilder.buildCanonicalHeaders(sourceSheet, profile.getSourceHeaderRows(), profile.getSourceConcatenationMode(), profile.getMultiRowHeaderSeparator());
+            targetHeaders = CanonicalNameBuilder.buildCanonicalHeaders(targetSheet, profile.getTargetHeaderRows(), profile.getTargetConcatenationMode(), profile.getMultiRowHeaderSeparator());
+
+            int sourceDataStartRow = profile.getSourceHeaderRows().isEmpty() ? 0 : profile.getSourceHeaderRows().stream().max(Integer::compareTo).get() + 1;
+            int targetDataStartRow = profile.getTargetHeaderRows().isEmpty() ? 0 : profile.getTargetHeaderRows().stream().max(Integer::compareTo).get() + 1;
+
+            sourceRows = sourceData.size() > sourceDataStartRow ? sourceData.subList(sourceDataStartRow, sourceData.size()) : new ArrayList<>();
+            targetRows = targetData.size() > targetDataStartRow ? targetData.subList(targetDataStartRow, targetData.size()) : new ArrayList<>();
+        }
+
+        // 3. Apply filters if they exist
         if (profile.getSourceFilterGroup() != null) {
-            sourceRows = applyFilter(sourceRows, sourceHeaders, profile.getSourceFilterGroup());
+            sourceRows = applyFilter(sourceRows, sourceHeaders.stream().map(h -> (Object)h).collect(Collectors.toList()), profile.getSourceFilterGroup());
         }
         if (profile.getTargetFilterGroup() != null) {
-            targetRows = applyFilter(targetRows, targetHeaders, profile.getTargetFilterGroup());
+            targetRows = applyFilter(targetRows, targetHeaders.stream().map(h -> (Object)h).collect(Collectors.toList()), profile.getTargetFilterGroup());
         }
 
-        // 2. Perform row matching
-        List<RowResult> rowResults = matchRows(sourceRows, targetRows, sourceHeaders, targetHeaders, profile);
+        // 4. Perform row matching
+        List<RowResult> rowResults = matchRows(sourceRows, targetRows, sourceHeaders.stream().map(h -> (Object)h).collect(Collectors.toList()), targetHeaders.stream().map(h -> (Object)h).collect(Collectors.toList()), profile);
 
-        // 3. Create final report
-        return new ComparisonResult(sourceHeaders.stream().map(Object::toString).collect(Collectors.toList()), rowResults);
+        // 5. Create final report
+        return new ComparisonResult(sourceHeaders, rowResults);
     }
 
     List<RowResult> matchRows(List<List<Object>> sourceRows, List<List<Object>> targetRows, List<Object> sourceHeaders, List<Object> targetHeaders, ComparisonProfile profile) {
@@ -81,8 +94,8 @@ public class ComparisonService {
         for (Map.Entry<String, String> mapping : mappings.entrySet()) {
             String sourceColName = mapping.getKey();
 
-            // Don't compare key columns, they are already known to match
-            if (profile.getKeyColumns().contains(sourceColName)) {
+            // Don't compare key columns or ignored columns
+            if (profile.getKeyColumns().contains(sourceColName) || profile.getIgnoredColumns().contains(sourceColName)) {
                 continue;
             }
 

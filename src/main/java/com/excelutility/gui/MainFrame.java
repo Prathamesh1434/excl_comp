@@ -173,23 +173,34 @@ public class MainFrame extends JFrame {
         String sheetName = panel.getSelectedSheet();
 
         if (filePath == null || filePath.trim().isEmpty() || sheetName == null) {
-            return; // Not ready to load headers
+            return;
         }
 
-        try {
-            List<List<Object>> headerData = ExcelReader.read(filePath, sheetName, true); // Assuming read gives all data for now
-            if (headerData.isEmpty()) {
-                if (isSource) this.sourceHeaders = List.of(); else this.targetHeaders = List.of();
+        try (org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(new java.io.File(filePath))) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheet(sheetName);
+            if (sheet == null) return;
+
+            List<Integer> headerRows = panel.getHeaderRowIndices();
+            // If no multi-row headers are detected/set, fall back to single header row logic
+            if (headerRows == null || headerRows.isEmpty()) {
+                headerRows = java.util.Collections.singletonList(0); // Default to first row
+            }
+
+            List<String> canonicalHeaders = com.excelutility.core.CanonicalNameBuilder.buildCanonicalHeaders(
+                sheet, headerRows, panel.getConcatenationMode(), " | ");
+
+            if (isSource) {
+                this.sourceHeaders = canonicalHeaders;
             } else {
-                List<String> headers = headerData.get(0).stream().map(Object::toString).collect(Collectors.toList());
-                if (isSource) this.sourceHeaders = headers; else this.targetHeaders = headers;
+                this.targetHeaders = canonicalHeaders;
             }
 
             if (this.sourceHeaders != null && this.targetHeaders != null) {
                 columnMappingPanel.setColumns(this.sourceHeaders, this.targetHeaders);
             }
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error reading header data from file: " + filePath, "Header Read Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Error processing headers from file: " + filePath, "Header Read Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
         }
     }
 
@@ -346,6 +357,11 @@ public class MainFrame extends JFrame {
         profile.setTargetSheetName(targetFilePanel.getSelectedSheet());
         profile.setColumnMappings(columnMappingPanel.getColumnMappings());
         profile.setKeyColumns(columnMappingPanel.getKeyColumns());
+        profile.setIgnoredColumns(columnMappingPanel.getIgnoredColumns());
+        profile.setSourceHeaderRows(sourceFilePanel.getHeaderRowIndices());
+        profile.setTargetHeaderRows(targetFilePanel.getHeaderRowIndices());
+        profile.setSourceConcatenationMode(sourceFilePanel.getConcatenationMode());
+        profile.setTargetConcatenationMode(targetFilePanel.getConcatenationMode());
     }
 
     private void updateGuiFromProfile(ComparisonProfile loadedProfile) {
@@ -370,6 +386,21 @@ public class MainFrame extends JFrame {
             if (this.sourceHeaders != null && this.targetHeaders != null &&
                 loadedProfile.getColumnMappings() != null && loadedProfile.getKeyColumns() != null) {
                 columnMappingPanel.setMappings(loadedProfile.getColumnMappings(), loadedProfile.getKeyColumns());
+            }
+            if (loadedProfile.getIgnoredColumns() != null) {
+                columnMappingPanel.setIgnoredColumns(loadedProfile.getIgnoredColumns());
+            }
+            if(loadedProfile.getSourceHeaderRows() != null) {
+                sourceFilePanel.setHeaderRowIndices(loadedProfile.getSourceHeaderRows());
+            }
+            if(loadedProfile.getTargetHeaderRows() != null) {
+                targetFilePanel.setHeaderRowIndices(loadedProfile.getTargetHeaderRows());
+            }
+            if(loadedProfile.getSourceConcatenationMode() != null) {
+                sourceFilePanel.setConcatenationMode(loadedProfile.getSourceConcatenationMode());
+            }
+            if(loadedProfile.getTargetConcatenationMode() != null) {
+                targetFilePanel.setConcatenationMode(loadedProfile.getTargetConcatenationMode());
             }
         });
     }

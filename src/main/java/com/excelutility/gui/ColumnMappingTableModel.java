@@ -1,29 +1,61 @@
 package com.excelutility.gui;
 
+import org.apache.commons.text.similarity.JaroWinklerSimilarity;
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-/**
- * Table model for the column mapping grid.
- */
 public class ColumnMappingTableModel extends AbstractTableModel {
 
     private final String[] columnNames = {"Source Column", "Target Column", "Is Key", "Ignore"};
-    private List<Object[]> data = new ArrayList<>(); // Data: [String source, String target, Boolean isKey, Boolean ignore]
+    private List<Object[]> data = new ArrayList<>();
+    private static final double FUZZY_MATCH_THRESHOLD = 0.8;
 
     public void setSourceColumns(List<String> sourceColumns, List<String> targetColumns) {
         data.clear();
+        List<String> availableTargetCols = new ArrayList<>(targetColumns);
+        JaroWinklerSimilarity fuzzyMatcher = new JaroWinklerSimilarity();
+
+        // Pass 1: Exact and Trimmed/Case-Insensitive Matches
         for (String sourceCol : sourceColumns) {
-            // Enhanced auto-mapping: trim whitespace and ignore case
-            String finalSourceCol = sourceCol.trim();
-            String targetCol = targetColumns.stream()
-                    .filter(t -> t.trim().equalsIgnoreCase(finalSourceCol))
+            String bestMatch = availableTargetCols.stream()
+                    .filter(t -> t.trim().equalsIgnoreCase(sourceCol.trim()))
                     .findFirst()
                     .orElse(null);
-            data.add(new Object[]{sourceCol, targetCol, false, false});
+
+            if (bestMatch != null) {
+                data.add(new Object[]{sourceCol, bestMatch, false, false});
+                availableTargetCols.remove(bestMatch);
+            } else {
+                // Add placeholder for fuzzy matching pass
+                data.add(new Object[]{sourceCol, null, false, false});
+            }
         }
+
+        // Pass 2: Fuzzy Matching for remaining columns
+        for (Object[] rowData : data) {
+            if (rowData[1] == null) { // If not mapped in pass 1
+                String sourceCol = (String) rowData[0];
+                String bestFuzzyMatch = null;
+                double highestScore = 0.0;
+
+                for (String targetCol : availableTargetCols) {
+                    double score = fuzzyMatcher.apply(sourceCol.toLowerCase(), targetCol.toLowerCase());
+                    if (score > highestScore) {
+                        highestScore = score;
+                        bestFuzzyMatch = targetCol;
+                    }
+                }
+
+                if (highestScore > FUZZY_MATCH_THRESHOLD) {
+                    rowData[1] = bestFuzzyMatch;
+                    availableTargetCols.remove(bestFuzzyMatch);
+                }
+            }
+        }
+
         fireTableDataChanged();
     }
 
@@ -34,11 +66,7 @@ public class ColumnMappingTableModel extends AbstractTableModel {
     public void setMappings(Map<String, String> mappings, List<String> keyColumns) {
         for (Object[] rowData : data) {
             String sourceColumn = (String) rowData[0];
-
-            // Set the target column from the loaded profile's mappings
             rowData[1] = mappings.getOrDefault(sourceColumn, null);
-
-            // Set the "Is Key" status from the loaded profile's key columns
             rowData[2] = keyColumns.contains(sourceColumn);
         }
         fireTableDataChanged();
@@ -61,7 +89,7 @@ public class ColumnMappingTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        if (columnIndex == 2 || columnIndex == 3) { // Is Key and Ignore
+        if (columnIndex == 2 || columnIndex == 3) {
             return Boolean.class;
         }
         return String.class;
@@ -69,7 +97,6 @@ public class ColumnMappingTableModel extends AbstractTableModel {
 
     @Override
     public boolean isCellEditable(int rowIndex, int columnIndex) {
-        // Source column is not editable
         return columnIndex > 0;
     }
 

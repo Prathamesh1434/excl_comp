@@ -18,10 +18,13 @@ public class ComparisonProfile {
     // Header settings
     private List<Integer> sourceHeaderRows;
     private List<Integer> targetHeaderRows;
-    private String multiRowHeaderSeparator = " ";
+    private ConcatenationMode sourceConcatenationMode = ConcatenationMode.LEAF_ONLY;
+    private ConcatenationMode targetConcatenationMode = ConcatenationMode.LEAF_ONLY;
+    private String multiRowHeaderSeparator = " | ";
 
     // Mapping and Matching
     private Map<String, String> columnMappings; // Source Column Name -> Target Column Name
+    private List<String> ignoredColumns = new java.util.ArrayList<>();
     private RowMatchStrategy rowMatchStrategy = RowMatchStrategy.BY_PRIMARY_KEY;
     private List<String> keyColumns; // List of source column names to use as keys
     private DuplicatePolicy duplicatePolicy = DuplicatePolicy.REPORT_ALL;
@@ -54,10 +57,16 @@ public class ComparisonProfile {
     public void setSourceHeaderRows(List<Integer> sourceHeaderRows) { this.sourceHeaderRows = sourceHeaderRows; }
     public List<Integer> getTargetHeaderRows() { return targetHeaderRows; }
     public void setTargetHeaderRows(List<Integer> targetHeaderRows) { this.targetHeaderRows = targetHeaderRows; }
+    public ConcatenationMode getSourceConcatenationMode() { return sourceConcatenationMode; }
+    public void setSourceConcatenationMode(ConcatenationMode sourceConcatenationMode) { this.sourceConcatenationMode = sourceConcatenationMode; }
+    public ConcatenationMode getTargetConcatenationMode() { return targetConcatenationMode; }
+    public void setTargetConcatenationMode(ConcatenationMode targetConcatenationMode) { this.targetConcatenationMode = targetConcatenationMode; }
     public String getMultiRowHeaderSeparator() { return multiRowHeaderSeparator; }
     public void setMultiRowHeaderSeparator(String multiRowHeaderSeparator) { this.multiRowHeaderSeparator = multiRowHeaderSeparator; }
     public Map<String, String> getColumnMappings() { return columnMappings; }
     public void setColumnMappings(Map<String, String> columnMappings) { this.columnMappings = columnMappings; }
+    public List<String> getIgnoredColumns() { return ignoredColumns; }
+    public void setIgnoredColumns(List<String> ignoredColumns) { this.ignoredColumns = ignoredColumns; }
     public RowMatchStrategy getRowMatchStrategy() { return rowMatchStrategy; }
     public void setRowMatchStrategy(RowMatchStrategy rowMatchStrategy) { this.rowMatchStrategy = rowMatchStrategy; }
     public List<String> getKeyColumns() { return keyColumns; }
