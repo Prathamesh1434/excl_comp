@@ -11,6 +11,8 @@ public class FileConfigPanel extends JPanel {
     private final JRadioButton singleHeaderRadio = new JRadioButton("Single Header Row", true);
     private final JRadioButton multiHeaderRadio = new JRadioButton("Multi-row Header");
     private final JSpinner singleHeaderSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+    private final JButton autoSuggestButton;
+    private final JButton filterButton;
 
     public FileConfigPanel(String title) {
         setLayout(new MigLayout("fillx", "[][grow][]", ""));
@@ -47,8 +49,8 @@ public class FileConfigPanel extends JPanel {
         multiHeaderRadio.addActionListener(e -> singleHeaderSpinner.setEnabled(false));
 
         JButton detectHeaderButton = new JButton("Detect Header");
-        JButton autoSuggestButton = new JButton("Auto-Suggest Keys");
-        JButton filterButton = new JButton("Filter...");
+        autoSuggestButton = new JButton("Auto-Suggest Keys");
+        filterButton = new JButton("Filter...");
         add(detectHeaderButton, "span, split 3, gaptop 5");
         add(autoSuggestButton);
         add(filterButton);
@@ -57,12 +59,6 @@ public class FileConfigPanel extends JPanel {
     // Public methods to get/set values will be added here
     public JTextField getFileField() { return fileField; }
     public JComboBox<String> getSheetCombo() { return sheetCombo; }
-    public JButton getAutoSuggestButton() {
-        // This is a bit of a hack. A better way would be to pass an ActionListener to the constructor.
-        return (JButton) ((JPanel) getComponent(4)).getComponent(1);
-    }
-
-    public JButton getFilterButton() {
-        return (JButton) ((JPanel) getComponent(4)).getComponent(2);
-    }
+    public JButton getAutoSuggestButton() { return autoSuggestButton; }
+    public JButton getFilterButton() { return filterButton; }
 }
