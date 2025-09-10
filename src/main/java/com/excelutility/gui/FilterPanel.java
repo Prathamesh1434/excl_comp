@@ -18,13 +18,14 @@ import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.ExecutionException;
 
-public class FilterFrame extends JFrame {
+public class FilterPanel extends JPanel {
 
-    private static final Logger logger = LoggerFactory.getLogger(FilterFrame.class);
+    private static final Logger logger = LoggerFactory.getLogger(FilterPanel.class);
 
-    private final FileSelectionPanel dataFilePanel;
-    private final FileSelectionPanel filterValuesFilePanel;
+    private final FilterFilePanel dataFilePanel;
+    private final FilterFilePanel filterValuesFilePanel;
     private final JTable dataPreviewTable;
     private final JTable filterValuesPreviewTable;
     private final DefaultTableModel dataPreviewModel;
@@ -35,17 +36,13 @@ public class FilterFrame extends JFrame {
     private final JCheckBox mergeOption;
     private Color selectedColor = Color.YELLOW;
 
-    public FilterFrame() {
-        setTitle("Excel Filter");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1600, 1000);
-        setLocationRelativeTo(null);
+    public FilterPanel() {
         setLayout(new BorderLayout());
 
         // --- Top Panel for File Selection ---
         JPanel topPanel = new JPanel(new MigLayout("fillx", "[grow][grow]"));
-        dataFilePanel = new FileSelectionPanel("Data File (to be filtered)", this);
-        filterValuesFilePanel = new FileSelectionPanel("Filter Values File", this);
+        dataFilePanel = new FilterFilePanel("Data File (to be filtered)", this);
+        filterValuesFilePanel = new FilterFilePanel("Filter Values File", this);
         topPanel.add(dataFilePanel, "growx");
         topPanel.add(filterValuesFilePanel, "growx, wrap");
 
@@ -70,6 +67,7 @@ public class FilterFrame extends JFrame {
         // Filter Values Preview Table
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
+        filterValuesPreviewTable.setCellSelectionEnabled(true);
         JScrollPane filterValuesPreviewScroll = new JScrollPane(filterValuesPreviewTable);
         filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data) - Double-click a cell to create a filter"));
         centerSplit.setRightComponent(filterValuesPreviewScroll);
@@ -166,10 +164,10 @@ public class FilterFrame extends JFrame {
                     try {
                         get();
                         logger.info("Export completed successfully.");
-                        JOptionPane.showMessageDialog(FilterFrame.this, "Results exported successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Results exported successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
                     } catch (Exception e) {
                         logger.error("Export failed.", e);
-                        JOptionPane.showMessageDialog(FilterFrame.this, "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
                     }
                 }
             }.execute();
@@ -177,22 +175,22 @@ public class FilterFrame extends JFrame {
     }
 
     private void createFilterFromSelection() {
-        int selectedRow = filterValuesPreviewTable.getSelectedRow();
-        int selectedCol = filterValuesPreviewTable.getSelectedColumn();
+        int[] selectedRows = filterValuesPreviewTable.getSelectedRows();
+        int[] selectedCols = filterValuesPreviewTable.getSelectedColumns();
 
-        if (selectedRow == -1 || selectedCol == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a cell in the 'Filter Values' table first.", "Selection Required", JOptionPane.WARNING_MESSAGE);
+        if (selectedRows.length == 0 || selectedCols.length == 0) {
+            JOptionPane.showMessageDialog(this, "Please select one or more cells in the 'Filter Values' table first.", "Selection Required", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        String cellValue = filterValuesPreviewTable.getValueAt(selectedRow, selectedCol).toString();
-        String columnName = filterValuesPreviewTable.getColumnName(selectedCol);
+        // For simplicity, we'll use the first selected cell to determine the source type
+        String firstCellValue = filterValuesPreviewTable.getValueAt(selectedRows[0], selectedCols[0]).toString();
+        String firstColumnName = filterValuesPreviewTable.getColumnName(selectedCols[0]);
 
-        FilterSourceDialog sourceDialog = new FilterSourceDialog(this, cellValue, columnName);
+        FilterSourceDialog sourceDialog = new FilterSourceDialog((Frame) SwingUtilities.getWindowAncestor(this), firstCellValue, firstColumnName);
         sourceDialog.setVisible(true);
 
         FilterRule.SourceType sourceType = sourceDialog.getSelectedType();
-        String sourceValue = sourceDialog.getSelectedValue();
 
         if (sourceType != null) {
             List<String> targetColumns = dataFilePanel.getColumnNames();
@@ -201,14 +199,55 @@ public class FilterFrame extends JFrame {
                 return;
             }
 
-            FilterTargetDialog targetDialog = new FilterTargetDialog(this, targetColumns);
+            FilterTargetDialog targetDialog = new FilterTargetDialog((Frame) SwingUtilities.getWindowAncestor(this), targetColumns);
             targetDialog.setVisible(true);
 
             List<String> selectedTargets = targetDialog.getSelectedColumns();
-            for (String target : selectedTargets) {
-                filterRulesPanel.addRule(new FilterRule(sourceType, sourceValue, target));
+            boolean trim = targetDialog.isTrimWhitespaceSelected();
+
+            if (!selectedTargets.isEmpty()) {
+                for (int row : selectedRows) {
+                    for (int col : selectedCols) {
+                        String sourceValue = filterValuesPreviewTable.getValueAt(row, col).toString();
+                        if (sourceType == FilterRule.SourceType.BY_COLUMN) {
+                            sourceValue = filterValuesPreviewTable.getColumnName(col);
+                        }
+
+                        for (String target : selectedTargets) {
+                            FilterRule rule = new FilterRule(sourceType, sourceValue, target, trim);
+                            int rowIndex = filterRulesPanel.addRule(rule);
+                            calculateAndDisplayCount(rule, rowIndex);
+                        }
+                    }
+                }
             }
         }
+    }
+
+    private void calculateAndDisplayCount(FilterRule rule, int rowIndex) {
+        new SwingWorker<Integer, Void>() {
+            @Override
+            protected Integer doInBackground() throws Exception {
+                return filteringService.countMatches(
+                        dataFilePanel.getFilePath(),
+                        dataFilePanel.getSelectedSheet(),
+                        rule,
+                        filterValuesFilePanel.getFilePath(),
+                        filterValuesFilePanel.getSelectedSheet()
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    int count = get();
+                    filterRulesPanel.updateRuleCount(rowIndex, count);
+                } catch (InterruptedException | ExecutionException e) {
+                    logger.error("Failed to count matches for rule: {}", rule, e);
+                    filterRulesPanel.updateRuleCount(rowIndex, -1); // Indicate error
+                }
+            }
+        }.execute();
     }
 
     private void loadPreviews() {
@@ -216,7 +255,7 @@ public class FilterFrame extends JFrame {
         loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview");
     }
 
-    private void loadTableData(FileSelectionPanel panel, DefaultTableModel model, int rowLimit, String errorTitle) {
+    private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle) {
         String filePath = panel.getFilePath();
         String sheetName = panel.getSelectedSheet();
 
@@ -244,21 +283,21 @@ public class FilterFrame extends JFrame {
                         return;
                     }
 
-                    Vector<String> headers = new Vector<>();
-                    for (Object header : data.get(0)) {
-                        headers.add(header != null ? header.toString() : "");
-                    }
+                    List<String> headers = panel.getColumnNames();
+                    Vector<String> headerVector = new Vector<>(headers);
+                    model.setColumnIdentifiers(headerVector);
 
                     Vector<Vector<Object>> dataVector = new Vector<>();
-                    if (data.size() > 1) {
-                        for (int i = 1; i < data.size(); i++) {
-                            dataVector.add(new Vector<>(data.get(i)));
-                        }
+                    List<List<Object>> dataRows = data.subList(panel.getHeaderRowIndices().size(), data.size());
+
+                    for(List<Object> row : dataRows) {
+                        dataVector.add(new Vector<>(row));
                     }
-                    model.setDataVector(dataVector, headers);
+
+                    model.setDataVector(dataVector, headerVector);
 
                 } catch (Exception e) {
-                    JOptionPane.showMessageDialog(FilterFrame.this, "Could not load data: " + e.getMessage(), errorTitle, JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Could not load data: " + e.getMessage(), errorTitle, JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();

@@ -23,13 +23,13 @@ public class FilteringServiceTest {
         filteringService = new FilteringService();
         new File(dataFilePath).getParentFile().mkdirs();
 
-        // Create data file
+        // Create data file with extra whitespace
         List<List<Object>> data = new ArrayList<>();
         data.add(Arrays.asList("ID", "Name", "City"));
-        data.add(Arrays.asList(1, "Alice", "New York"));
+        data.add(Arrays.asList(1, "Alice", "  New York  "));
         data.add(Arrays.asList(2, "Bob", "Los Angeles"));
         data.add(Arrays.asList(3, "Charlie", "New York"));
-        data.add(Arrays.asList(4, "David", "Chicago"));
+        data.add(Arrays.asList(4, "David", "  Chicago"));
         SimpleExcelWriter.write(data, "Sheet1", dataFilePath);
 
         // Create filter file
@@ -49,28 +49,55 @@ public class FilteringServiceTest {
     @Test
     void testFilterByValue() throws Exception {
         List<FilterRule> rules = new ArrayList<>();
-        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City"));
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false));
 
         Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        List<List<Object>> filteredRows = results.values().iterator().next();
+        assertEquals(2, filteredRows.size()); // Header + 1 row
+        assertEquals("Charlie", filteredRows.get(1).get(1));
+    }
 
-        assertEquals(1, results.size());
-        assertTrue(results.containsKey("Filtered_by_New_York_on_City"));
-        List<List<Object>> filteredRows = results.get("Filtered_by_New_York_on_City");
+    @Test
+    void testFilterByValueWithTrim() throws Exception {
+        List<FilterRule> rules = new ArrayList<>();
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true));
+
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(3, filteredRows.size()); // Header + 2 rows
-        assertEquals("Alice", filteredRows.get(1).get(1));
-        assertEquals("Charlie", filteredRows.get(2).get(1));
     }
 
     @Test
     void testFilterByColumn() throws Exception {
         List<FilterRule> rules = new ArrayList<>();
-        rules.add(new FilterRule(FilterRule.SourceType.BY_COLUMN, "Cities", "City"));
+        rules.add(new FilterRule(FilterRule.SourceType.BY_COLUMN, "Cities", "City", true));
 
         Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
-
-        assertEquals(1, results.size());
-        assertTrue(results.containsKey("Filtered_by_Cities_on_City"));
-        List<List<Object>> filteredRows = results.get("Filtered_by_Cities_on_City");
+        List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(4, filteredRows.size()); // Header + 3 rows
+    }
+
+    @Test
+    void testZeroRecordFilter() throws Exception {
+        List<FilterRule> rules = new ArrayList<>();
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "San Francisco", "City", false));
+
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        List<List<Object>> filteredRows = results.values().iterator().next();
+        assertEquals(1, filteredRows.size()); // Header only
+    }
+
+    @Test
+    void testCountMatchesWithTrim() throws Exception {
+        FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "  New York  ", "City", true);
+        int count = filteringService.countMatches(dataFilePath, "Sheet1", rule, filterFilePath, "Sheet1");
+        assertEquals(2, count);
+    }
+
+    @Test
+    void testCountMatchesWithoutTrim() throws Exception {
+        FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false);
+        int count = filteringService.countMatches(dataFilePath, "Sheet1", rule, filterFilePath, "Sheet1");
+        assertEquals(1, count);
     }
 }

@@ -8,6 +8,8 @@ import com.excelutility.io.ExcelReader;
 import com.excelutility.io.ProfileService;
 import com.excelutility.io.SimpleExcelWriter;
 import net.miginfocom.swing.MigLayout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -18,12 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public class MainFrame extends JFrame {
+public class ComparePanel extends JPanel {
 
-    private static final Logger logger = LoggerFactory.getLogger(MainFrame.class);
+    private static final Logger logger = LoggerFactory.getLogger(ComparePanel.class);
     private final ComparisonProfile profile = new ComparisonProfile();
     private final ComparisonService comparisonService = new ComparisonService();
     private final ProfileService profileService = new ProfileService("profiles");
@@ -42,53 +42,8 @@ public class MainFrame extends JFrame {
     private List<String> sourceHeaders;
     private List<String> targetHeaders;
 
-    public MainFrame() {
-        setTitle("Excel Utility");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1600, 1000);
-        setLocationRelativeTo(null);
-
+    public ComparePanel() {
         setLayout(new BorderLayout());
-
-        // --- Menu Bar ---
-        JMenuBar menuBar = new JMenuBar();
-        JMenu fileMenu = new JMenu("File");
-
-        JMenuItem saveProfileItem = new JMenuItem("Save Profile As...");
-        saveProfileItem.addActionListener(e -> saveProfile());
-        fileMenu.add(saveProfileItem);
-
-        JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
-        loadProfileItem.addActionListener(e -> loadProfile());
-        fileMenu.add(loadProfileItem);
-
-        JMenuItem exportResultsItem = new JMenuItem("Export Results...");
-        exportResultsItem.addActionListener(e -> exportResults());
-        fileMenu.add(exportResultsItem);
-
-        fileMenu.addSeparator();
-
-        JMenuItem exitItem = new JMenuItem("Exit");
-        exitItem.addActionListener(e -> System.exit(0));
-        fileMenu.add(exitItem);
-        menuBar.add(fileMenu);
-
-        JMenu editMenu = new JMenu("Edit");
-        JMenuItem profileManagerItem = new JMenuItem("Profile Manager...");
-        profileManagerItem.addActionListener(e -> openProfileManager());
-        editMenu.add(profileManagerItem);
-        menuBar.add(editMenu);
-
-        JMenu toolsMenu = new JMenu("Tools");
-        JMenuItem runMenuItem = new JMenuItem("Run Comparison");
-        runMenuItem.addActionListener(e -> runComparison());
-        toolsMenu.add(runMenuItem);
-        JMenuItem testGenItem = new JMenuItem("Generate Test Cases...");
-        testGenItem.addActionListener(e -> openTestCaseGenerator());
-        toolsMenu.add(testGenItem);
-        menuBar.add(toolsMenu);
-
-        setJMenuBar(menuBar);
 
         // --- Main Panel ---
         JPanel mainPanel = new JPanel(new MigLayout("fill", "[grow]", "[][grow]"));
@@ -164,6 +119,47 @@ public class MainFrame extends JFrame {
                 loadHeaders(false);
             }
         });
+    }
+
+    public JMenuBar createMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+
+        JMenuItem saveProfileItem = new JMenuItem("Save Profile As...");
+        saveProfileItem.addActionListener(e -> saveProfile());
+        fileMenu.add(saveProfileItem);
+
+        JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
+        loadProfileItem.addActionListener(e -> loadProfile());
+        fileMenu.add(loadProfileItem);
+
+        JMenuItem exportResultsItem = new JMenuItem("Export Results...");
+        exportResultsItem.addActionListener(e -> exportResults());
+        fileMenu.add(exportResultsItem);
+
+        fileMenu.addSeparator();
+
+        JMenuItem exitItem = new JMenuItem("Exit");
+        exitItem.addActionListener(e -> System.exit(0));
+        fileMenu.add(exitItem);
+        menuBar.add(fileMenu);
+
+        JMenu editMenu = new JMenu("Edit");
+        JMenuItem profileManagerItem = new JMenuItem("Profile Manager...");
+        profileManagerItem.addActionListener(e -> openProfileManager());
+        editMenu.add(profileManagerItem);
+        menuBar.add(editMenu);
+
+        JMenu toolsMenu = new JMenu("Tools");
+        JMenuItem runMenuItem = new JMenuItem("Run Comparison");
+        runMenuItem.addActionListener(e -> runComparison());
+        toolsMenu.add(runMenuItem);
+        JMenuItem testGenItem = new JMenuItem("Generate Test Cases...");
+        testGenItem.addActionListener(e -> openTestCaseGenerator());
+        toolsMenu.add(testGenItem);
+        menuBar.add(toolsMenu);
+
+        return menuBar;
     }
 
     private void loadHeaders(boolean isSource) {
@@ -247,7 +243,7 @@ public class MainFrame extends JFrame {
                     statusLabel.setText("Error during comparison.");
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     logger.error("Comparison failed with exception.", cause);
-                    ErrorDialog dialog = new ErrorDialog(MainFrame.this, "Comparison Failed", cause.getMessage(), cause);
+                    ErrorDialog dialog = new ErrorDialog((Frame) SwingUtilities.getWindowAncestor(ComparePanel.this), "Comparison Failed", cause.getMessage(), cause);
                     dialog.setVisible(true);
                 }
             }
@@ -301,19 +297,19 @@ public class MainFrame extends JFrame {
 
                 } catch (Exception e) {
                     statusLabel.setText("Error loading preview.");
-                    JOptionPane.showMessageDialog(MainFrame.this, "Could not load preview: " + e.getMessage(), "Preview Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(ComparePanel.this, "Could not load preview: " + e.getMessage(), "Preview Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
     }
 
     private void openTestCaseGenerator() {
-        TestCaseGeneratorDialog dialog = new TestCaseGeneratorDialog(this);
+        TestCaseGeneratorDialog dialog = new TestCaseGeneratorDialog((Frame) SwingUtilities.getWindowAncestor(this));
         dialog.setVisible(true);
     }
 
     private void openProfileManager() {
-        ProfileManagerDialog dialog = new ProfileManagerDialog(this, profileService);
+        ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
         dialog.setVisible(true);
     }
 
@@ -424,7 +420,7 @@ public class MainFrame extends JFrame {
 
             List<KeySuggester.KeySuggestion> suggestions = KeySuggester.suggestKeys(data, headers);
 
-            KeySuggestionDialog dialog = new KeySuggestionDialog(this, suggestions);
+            KeySuggestionDialog dialog = new KeySuggestionDialog((Frame) SwingUtilities.getWindowAncestor(this), suggestions);
             dialog.setVisible(true);
 
             if (dialog.isAccepted()) {
@@ -479,10 +475,10 @@ public class MainFrame extends JFrame {
                     try {
                         get();
                         statusLabel.setText("Results exported successfully.");
-                        JOptionPane.showMessageDialog(MainFrame.this, "Results exported successfully to:\n" + finalFilePath, "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(ComparePanel.this, "Results exported successfully to:\n" + finalFilePath, "Export Complete", JOptionPane.INFORMATION_MESSAGE);
                     } catch (Exception e) {
                         statusLabel.setText("Error during export.");
-                        JOptionPane.showMessageDialog(MainFrame.this, "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(ComparePanel.this, "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
                         e.printStackTrace();
                     }
                 }

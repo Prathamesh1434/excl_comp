@@ -2,9 +2,11 @@
 
 A production-ready, GUI-only Java Swing desktop application for comparing Excel files and filtering Excel data. This tool provides a comprehensive set of features for normalization, key mapping, detailed comparison, interactive filtering, and reporting, all configurable through an intuitive user interface.
 
-## Modes of Operation
+## Application Structure
 
-When you launch the application, you can choose between two primary modes:
+The application now launches into a **Mode Selection** screen. From here, you can choose your desired workflow. A "File" menu is always available, allowing you to go **Back to Mode Selection** at any time to switch workflows without restarting the application.
+
+## Modes of Operation
 
 ### 1. Compare Excel Files (Classic Mode)
 
@@ -12,14 +14,9 @@ This mode allows you to perform a detailed comparison of two Excel files.
 
 **Key Features**:
 
--   **GUI-Only Configuration**: No command-line interface or manual file editing required. All configurations, from file loading to complex normalization rules, are managed through the GUI.
--   **Advanced Key Column Selection**:
-    -   An interactive table allows you to map columns from the source file to the target file.
-    -   Select which mappings to use as a **composite key** by ticking an "Is Key" checkbox.
-    -   A dedicated panel shows you exactly which columns are currently selected as keys.
-    -   An **"Auto-Suggest Keys"** feature analyzes your data and recommends the best columns to use as unique identifiers.
--   **Header Normalization**: Supports multi-row headers by merging them into a single, combined header. This can be enabled per file, and the number of header rows is configurable.
--   **Profile Management**: Save and load complex comparison configurations to and from profiles via a user-friendly Profile Manager.
+-   **Advanced Key Column Selection**: Interactively map columns and select a composite key.
+-   **Header Normalization**: Supports multi-row and merged-cell headers.
+-   **Profile Management**: Save and load complex comparison configurations.
 -   **Large File Support**: Includes a streaming mode to handle large `.xlsx` files efficiently.
 
 ### 2. Filter Excel Data (New)
@@ -28,12 +25,14 @@ This mode allows you to filter one Excel file based on a list of values or entir
 
 **Key Features**:
 
--   **Interactive Filter Creation**: Load a "Data File" and a "Filter Values File". Simply double-click any cell in the "Filter Values" preview table to create a filter.
+-   **Advanced Header Detection**: Both the data file and the filter-values file support single-row, multi-row, and merged-cell headers, ensuring accurate data parsing.
+-   **Interactive Filter Creation**: Load a "Data File" and a "Filter Values File". Simply double-click any cell (or select multiple cells) in the "Filter Values" preview table to create a filter.
 -   **Flexible Filter Sources**: A dialog will ask if you want to filter by the specific **cell value** you clicked, or by all values in that cell's **column**.
--   **Targeted Filtering**: After choosing your filter source, another dialog lets you apply the filter to one or more columns in your Data File.
--   **Filter Management**: A dedicated panel shows all your configured filters. You can clear them at any time.
+-   **Targeted Filtering**: After choosing your filter source, another dialog lets you apply the filter to one or more columns in your Data File. You can also choose to **trim whitespace** from the target column for more robust matching.
+-   **Immediate Record Counting**: As soon as a filter is created, the application runs a background check and displays the number of matching records. The count is color-coded: **green for > 0** records, **red for 0**.
 -   **Configurable Export**:
     -   Download all filtered results into a **single Excel file** with one sheet per filter, or as **separate files**.
+    -   If a filter yields no results, an export file is still created with a "No rows matched" message.
     -   Choose a custom **highlight color** for the filtered rows in the exported files.
 
 ## Technical Stack
@@ -72,7 +71,7 @@ mvn test
 
 ## Developer Notes
 
--   **Project Structure**: The project is organized into `gui`, `core`, `io`, `excel`, and `test` packages.
+-   **Project Structure**: The project is organized into `gui`, `core`, `io`, `excel`, and `test` packages. The main UI is managed by `AppContainer.java`, which uses a `CardLayout` to switch between `ModeSelectionPanel`, `ComparePanel`, and `FilterPanel`.
 -   **Profiles**: Comparison profiles are saved as `.json` files in a `profiles/` directory created where the application is run.
 -   **Test Cases**: Generated test cases are saved to the `target/test-cases/` directory.
 

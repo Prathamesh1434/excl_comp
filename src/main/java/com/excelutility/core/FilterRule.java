@@ -10,11 +10,13 @@ public class FilterRule {
     private final SourceType sourceType;
     private final String sourceValue; // The value or column name from the filter file
     private final String targetColumn; // The column in the data file to apply the filter to
+    private final boolean trimWhitespace;
 
-    public FilterRule(SourceType sourceType, String sourceValue, String targetColumn) {
+    public FilterRule(SourceType sourceType, String sourceValue, String targetColumn, boolean trimWhitespace) {
         this.sourceType = sourceType;
         this.sourceValue = sourceValue;
         this.targetColumn = targetColumn;
+        this.trimWhitespace = trimWhitespace;
     }
 
     public SourceType getSourceType() {
@@ -27,6 +29,10 @@ public class FilterRule {
 
     public String getTargetColumn() {
         return targetColumn;
+    }
+
+    public boolean isTrimWhitespace() {
+        return trimWhitespace;
     }
 
     @Override

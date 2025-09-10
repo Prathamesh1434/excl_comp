@@ -1,8 +1,6 @@
 package com.excelutility;
 
-import com.excelutility.gui.FilterFrame;
-import com.excelutility.gui.MainFrame;
-import com.excelutility.gui.StartupModeDialog;
+import com.excelutility.gui.AppContainer;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
@@ -25,26 +23,8 @@ public class App {
         }
 
         SwingUtilities.invokeLater(() -> {
-            StartupModeDialog startupDialog = new StartupModeDialog(null);
-            startupDialog.setVisible(true);
-
-            StartupModeDialog.Mode selectedMode = startupDialog.getSelectedMode();
-
-            switch (selectedMode) {
-                case COMPARE:
-                    MainFrame mainFrame = new MainFrame();
-                    mainFrame.setVisible(true);
-                    break;
-                case FILTER:
-                    FilterFrame filterFrame = new FilterFrame();
-                    filterFrame.setVisible(true);
-                    break;
-                case NONE:
-                default:
-                    // User closed the dialog, so exit the application
-                    System.exit(0);
-                    break;
-            }
+            AppContainer appContainer = new AppContainer();
+            appContainer.setVisible(true);
         });
     }
 }

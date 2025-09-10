@@ -11,16 +11,20 @@ public class FilterTargetDialog extends JDialog {
 
     private JList<String> columnList;
     private List<String> selectedColumns = Collections.emptyList();
+    private JCheckBox trimWhitespaceCheckbox;
 
     public FilterTargetDialog(Frame owner, List<String> availableColumns) {
         super(owner, "Select Target Column(s) for Filter", true);
-        setLayout(new MigLayout("fill, wrap 1", "[grow]", "[grow][]"));
+        setLayout(new MigLayout("fill, wrap 1", "[grow]", "[][grow][]"));
 
         add(new JLabel("Select one or more columns from the data file to apply the filter to:"), "growx");
 
         columnList = new JList<>(availableColumns.toArray(new String[0]));
         columnList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         add(new JScrollPane(columnList), "grow");
+
+        trimWhitespaceCheckbox = new JCheckBox("Trim whitespace from target column(s) before filtering", true);
+        add(trimWhitespaceCheckbox, "growx");
 
         JButton okButton = new JButton("OK");
         okButton.addActionListener(e -> {
@@ -50,5 +54,9 @@ public class FilterTargetDialog extends JDialog {
 
     public List<String> getSelectedColumns() {
         return selectedColumns;
+    }
+
+    public boolean isTrimWhitespaceSelected() {
+        return trimWhitespaceCheckbox.isSelected();
     }
 }

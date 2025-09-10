@@ -202,32 +202,49 @@ public class SimpleExcelWriter {
         Sheet sheet = workbook.createSheet(sheetName);
         CellStyle rowStyle = createStyleWithColor(workbook, rowColor);
 
-        int rowNum = 0;
-        for (List<Object> rowData : data) {
-            Row row = sheet.createRow(rowNum++);
-            int colNum = 0;
-            for (Object field : rowData) {
-                Cell cell = row.createCell(colNum++);
-                if (field instanceof String) {
-                    cell.setCellValue((String) field);
-                } else if (field instanceof Integer) {
-                    cell.setCellValue((Integer) field);
-                } else if (field instanceof Double) {
-                    cell.setCellValue((Double) field);
-                } else {
-                    cell.setCellValue(field != null ? field.toString() : "");
-                }
-                if (rowNum > 1) { // Don't color header
+        // Write header
+        if (data.isEmpty()) {
+            Row row = sheet.createRow(0);
+            row.createCell(0).setCellValue("No data for this filter.");
+            return;
+        }
+
+        Row headerRow = sheet.createRow(0);
+        int colNum = 0;
+        for (Object field : data.get(0)) {
+            Cell cell = headerRow.createCell(colNum++);
+            cell.setCellValue(field != null ? field.toString() : "");
+        }
+
+        // Write data rows
+        if (data.size() > 1) {
+            for (int i = 1; i < data.size(); i++) {
+                Row row = sheet.createRow(i);
+                colNum = 0;
+                for (Object field : data.get(i)) {
+                    Cell cell = row.createCell(colNum++);
+                    if (field instanceof String) {
+                        cell.setCellValue((String) field);
+                    } else if (field instanceof Integer) {
+                        cell.setCellValue((Integer) field);
+                    } else if (field instanceof Double) {
+                        cell.setCellValue((Double) field);
+                    } else {
+                        cell.setCellValue(field != null ? field.toString() : "");
+                    }
                     cell.setCellStyle(rowStyle);
                 }
             }
+        } else {
+            // No data rows, write a message
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("No rows matched this filter.");
         }
 
+
         // Autosize columns
-        if (!data.isEmpty()) {
-            for (int i = 0; i < data.get(0).size(); i++) {
-                sheet.autoSizeColumn(i);
-            }
+        for (int i = 0; i < data.get(0).size(); i++) {
+            sheet.autoSizeColumn(i);
         }
     }
 }
