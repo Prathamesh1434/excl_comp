@@ -14,10 +14,11 @@ public class App {
      * @param args Command line arguments (not used).
      */
     public static void main(String[] args) {
-        // Set a modern look and feel
+        // Set a cross-platform look and feel for consistency
         try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            // UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
+            // If the native L&F fails, the default (Metal) will be used.
             e.printStackTrace();
         }
 
