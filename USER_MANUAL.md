@@ -1,78 +1,74 @@
 # Excel Utility - User Manual
 
-Welcome to the Excel Utility! This guide will walk you through the features of the application and how to use them to compare your Excel files.
+Welcome to the Excel Utility! This guide will walk you through the features of the application.
 
-## 1. Main Window Overview
+## 1. Choosing a Mode
 
-The main window is divided into several key sections:
--   **Menu Bar**: Access major functions like saving/loading profiles, running the comparison, and generating test cases.
--   **File Configuration Panels**: At the top, you'll find two identical panels for configuring your "Source" (left) and "Target" (right) Excel files.
--   **Column Mappings & Preview**: The central area of the application is split between the Column Mapping panel on the left and the File Preview panels on the right.
--   **Results Table & Summary**: The bottom area is split between the detailed results table on the left and a high-level summary panel on the right.
--   **Status Bar**: At the very bottom, this bar provides feedback on the current operation.
+When you first start the application, you will be asked to choose a mode. You can switch between modes at any time by using the "File" > "Back to Mode Selection" menu item.
 
-## 2. Basic Workflow
+-   **Compare Excel Files**: Use this mode to perform a detailed, cell-by-cell comparison of two Excel files.
+-   **Filter Excel Data**: Use this mode to filter a main data file based on values from a second file.
 
-A typical workflow involves these steps:
+---
+
+## 2. Compare Excel Files Mode
+
+This mode allows you to perform a detailed comparison of two Excel files.
+
+### Basic Workflow
 
 1.  **Load Files**: In the "Source File" and "Target File" panels, click the **"Browse..."** button to select the two Excel files you want to compare.
 2.  **Select Sheets**: Once a file is loaded, the "Sheet" dropdown in its panel will be populated. Select the sheet you want to compare from each file.
-3.  **(Recommended) Detect Headers**: In each file panel, click the **"Detect Header"** button. This will open a dialog that automatically suggests which rows are part of the header, which is crucial for complex, multi-row headers. Review and confirm the selection.
-4.  **(Optional) Preview Files**: Click the **"Preview"** button to see the first 10 rows of the selected sheet in the preview panel.
-5.  **Configure Mappings**:
-    -   Go to the "Column Mappings" panel. The application will use the detected headers to automatically map columns between the two files.
-    -   Review the mappings and select at least one **"Is Key"** column to define how rows should be matched.
-6.  **(Optional) Apply Filters**: Use the **"Filter..."** button to build a filter, or load a saved filter to narrow down the data before comparison.
-7.  **Run Comparison**: Click **"Tools" > "Run Comparison"** from the menu bar.
-8.  **View Results**: The results will appear in the results table and the summary panel.
-9.  **Export Report**: Go to **"File" > "Export Results..."** to save the results to a two-sheet, styled Excel file.
+3.  **(Recommended) Detect Headers**: In each file panel, click the **"Detect Header"** button. This will open a dialog that automatically suggests which rows are part of the header, which is crucial for complex, multi-row headers.
+4.  **Configure Mappings**: Go to the "Column Mappings" panel to map columns and select at least one **"Is Key"** column to define how rows should be matched.
+5.  **Run Comparison**: Click **"Tools" > "Run Comparison"** from the menu bar.
+6.  **View Results**: The results will appear in the results table and the summary panel.
+7.  **Export Report**: Go to **"File" > "Export Results..."** to save the results.
 
-## 3. Key Features in Detail
+*(For more details on advanced features like Profile Management and Test Case Generation, please refer to the README file.)*
 
-### Advanced Header Detection
+---
 
-For files with complex, multi-row, or merged headers, using the **"Detect Header"** button in each file panel is highly recommended.
--   **Automatic Detection**: The tool scans the first 20 rows of your sheet and uses heuristics (cell styling, merged regions, data types) to calculate a "confidence score" for each row.
--   **Interactive Dialog**: It then presents these rows in a dialog. Rows that it thinks are headers will be pre-selected.
--   **User Override**: You can override the automatic selection by checking or unchecking the box for any row.
--   **Concatenation Mode**: The dialog also lets you choose how to build the final column name from multiple header rows:
-    -   `LEAF_ONLY`: (Default) Uses only the text from the bottom-most selected header row for that column.
-    -   `BREADCRUMB`: Joins the text from all selected header rows (e.g., "Sales | Q1 | Product Name"). This is very powerful for auto-mapping.
+## 3. Filter Excel Data Mode
 
-### Column Mapping and Key Selection
+This mode allows you to filter one Excel file (the "Data File") using values from another Excel file (the "Filter Values File").
 
-This is done in the **"Column Mappings"** panel.
-1.  **Auto-Mapping**: After headers are detected, the application automatically tries to map columns from source to target. It uses an exact match on the canonical header names first, then falls back to a "fuzzy match" for columns that are similar but not identical.
-2.  **Manual Mapping**: For any unmapped columns, use the dropdown in the "Target Column" cell to select the correct column.
-3.  **Select Key Columns**: Tick the **"Is Key"** checkbox for one or more source columns to define how rows are matched.
-4.  **Ignore Columns**: Tick the **"Ignore"** checkbox to completely exclude a column from the comparison. Ignored columns will be grayed out and have a strikethrough. Use the **"Clear All Ignores"** button to reset this for all columns.
-5.  **Auto-Suggest Keys**: If you're unsure which columns to use as a key, click the **"Auto-Suggest Keys"** button in either the source or target file panel. The tool will analyze that file's data for uniqueness and suggest the best key candidates.
+### Basic Workflow
 
-### Filter Management
+1.  **Load Files**:
+    -   In the **"Data File"** panel, click "Browse..." to select the main Excel file you want to filter.
+    -   In the **"Filter Values File"** panel, click "Browse..." to select the Excel file that contains the values you want to use for filtering.
 
--   **Build & Apply**: Click the **"Filter..."** button in a file panel to open the Filter Builder. Create your conditions and click "Apply" to use the filter for the next comparison.
--   **Save & Load**: In the Filter Builder, you can click **"Save Filter"** to name and save your filter configuration for the current session. You can then use the **"Load"** button in the main file panel to apply a saved filter without having to rebuild it.
--   **Clear Filter**: Click the **"Clear"** button to remove any active filter on that file.
+2.  **Select and Preview Sheets**:
+    -   For each file, select the correct sheet from the dropdown. Use the "Search Sheet" box to quickly find a sheet in large workbooks.
+    -   Click the **"Load & Preview Files"** button to load the data into the preview tables. The preview tables have grid lines and can be sorted by clicking on the column headers.
 
-## 4. Understanding the Results
+3.  **Define Header Rows (If Necessary)**:
+    -   If your files have complex, multi-row headers, click the **"Detect Header"** button for each file to correctly identify the header rows before creating filters.
 
-The results table and summary panel give you a complete picture of the comparison.
+4.  **Create Filter Rules**:
+    -   In the "Filter Values Preview" table, find a cell you want to use for filtering and **double-click** it (or select one or more cells and click "Add Filter from Selection").
+    -   A dialog will appear. Choose how you want to filter:
+        -   **Filter by Value**: Uses the exact value of the cell you clicked (e.g., "Yes").
+        -   **Filter using Column Name**: Uses the header of the column you clicked as the filter value (e.g., "Female").
+    -   A second dialog will appear. Select the column(s) from your **Data File** that you want to apply this filter to. You can also choose whether to "Trim whitespace" for more flexible matching.
+    -   The new filter rule will appear in the "Configured Filters" list. Repeat this step to add as many rules as you need.
 
-### Summary Panel
-This panel shows high-level statistics:
--   Total rows in each file.
--   Number of identical and mismatched rows.
--   Number of rows found only in the source or only in the target.
+5.  **Apply Filters and Download**:
+    -   In the action panel, choose your **Filter Logic**:
+        -   **AND**: A row in your Data File will only be included if it matches ALL of the rules you created.
+        -   **OR**: A row will be included if it matches AT LEAST ONE of the rules you created.
+    -   (Optional) Click **"Set Highlight Color"** to choose a color for the matching rows in the output file.
+    -   Click **"Download Filtered Results"**. This will apply your filter rules and prompt you to save the resulting Excel file.
 
-### Results Table Color-Coding
--   **White**: Identical rows.
--   **Light Green**: Source-only rows.
--   **Light Pink**: Target-only rows.
--   **Very Light Yellow**: Rows with at least one mismatch.
--   **Yellow (Cell)**: Numeric mismatch.
--   **Pink/Coral (Cell)**: String mismatch.
--   **Orange (Cell)**: Blank vs. non-blank mismatch.
--   **Purple (Cell)**: Data type mismatch.
+### Understanding the Filter Panel
+
+-   **Data File Panel**: Where you load the main file to be filtered.
+-   **Filter Values File Panel**: Where you load the file containing the values to use as filters.
+-   **Data Preview**: Shows a preview of your main data file.
+-   **Filter Values Preview**: Shows the full content of your filter values file. This is the table you interact with to create filters.
+-   **Configured Filters**: A list of all the filter rules you have created. Use the "Clear All Filters" button to start over.
+-   **Action Panel**: Contains all the controls for creating and applying filters, setting options, and downloading the final report.
 
 ---
 *Thank you for using Excel Utility!*

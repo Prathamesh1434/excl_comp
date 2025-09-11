@@ -6,11 +6,22 @@ import net.miginfocom.swing.MigLayout;
 import javax.swing.*;
 import java.awt.*;
 
+/**
+ * A dialog that prompts the user to choose how to use a selected cell from the filter-values file.
+ * The user can choose to filter by the cell's literal value or by its column's name.
+ */
 public class FilterSourceDialog extends JDialog {
 
     private FilterRule.SourceType selectedType;
     private String selectedValue;
 
+    /**
+     * Constructs the dialog.
+     *
+     * @param owner      The parent frame.
+     * @param value      The value of the selected cell.
+     * @param columnName The name of the column of the selected cell.
+     */
     public FilterSourceDialog(Frame owner, String value, String columnName) {
         super(owner, "Select Filter Source", true);
         setLayout(new MigLayout("wrap 1", "[grow]", "[]15[]15[]"));
@@ -21,7 +32,7 @@ public class FilterSourceDialog extends JDialog {
         add(infoLabel, "growx");
 
         JButton byValueButton = new JButton(String.format("Filter by Value: '%s'", displayValue));
-        JButton byColumnButton = new JButton(String.format("Filter using entire Column: '%s'", columnName));
+        JButton byColumnButton = new JButton(String.format("Filter using Column Name: '%s'", columnName));
 
         add(byValueButton, "growx");
         add(byColumnButton, "growx");
@@ -43,10 +54,16 @@ public class FilterSourceDialog extends JDialog {
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
     }
 
+    /**
+     * @return The {@link FilterRule.SourceType} selected by the user.
+     */
     public FilterRule.SourceType getSelectedType() {
         return selectedType;
     }
 
+    /**
+     * @return The string value associated with the user's choice (either the cell value or the column name).
+     */
     public String getSelectedValue() {
         return selectedValue;
     }

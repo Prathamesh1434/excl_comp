@@ -9,87 +9,118 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Provides the core logic for filtering Excel data based on a set of rules.
+ */
 public class FilteringService {
 
-    public Map<String, List<List<Object>>> filter(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, List<FilterRule> rules) throws IOException, InvalidFormatException {
-        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false); // Use in-memory reader
-        if (allData.isEmpty()) {
-            return new HashMap<>();
+    /**
+     * Defines the logical operator to use when applying multiple filters.
+     */
+    public enum LogicalOperator {
+        /**
+         * A row must match ALL filter rules to be included in the result.
+         */
+        AND,
+        /**
+         * A row must match AT LEAST ONE filter rule to be included in the result.
+         */
+        OR
+    }
+
+    /**
+     * Filters the data from an Excel sheet based on a list of rules and a logical operator.
+     *
+     * @param dataFilePath     The path to the Excel file containing the data to be filtered.
+     * @param sheetName        The name of the sheet to filter.
+     * @param dataHeaderRows   The indices of the header rows in the data file.
+     * @param dataConcatMode   The mode for concatenating multi-row headers.
+     * @param rules            A list of {@link FilterRule} objects to apply.
+     * @param operator         The {@link LogicalOperator} (AND/OR) to use when combining filters.
+     * @return A single list of lists representing the filtered data, including the header row.
+     * @throws IOException            If there is an error reading the files.
+     * @throws InvalidFormatException If the Excel file format is invalid.
+     */
+    public List<List<Object>> filter(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, List<FilterRule> rules, LogicalOperator operator) throws IOException, InvalidFormatException {
+        // Always use the in-memory reader to ensure accurate handling of null/blank cells.
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
+        if (allData.isEmpty() || rules.isEmpty()) {
+            return new ArrayList<>();
         }
 
+        // Build the canonical header from the source file to correctly map column names to indices.
         List<String> header;
         try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
             Sheet sheet = workbook.getSheet(sheetName);
             header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
         }
 
+        // Determine where the actual data begins after the header rows.
         int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
         List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
 
-        Map<String, List<List<Object>>> results = new HashMap<>();
+        List<List<Object>> results = new ArrayList<>();
+        results.add(new ArrayList<>(header)); // Start the result set with the header.
 
-        for (FilterRule rule : rules) {
-            List<List<Object>> filteredRows = new ArrayList<>();
-            filteredRows.add(new ArrayList<>(header));
-
-            int targetColIndex = header.indexOf(rule.getTargetColumn());
-            if (targetColIndex == -1) {
-                System.err.println("Warning: Target column '" + rule.getTargetColumn() + "' not found in data file. Skipping rule.");
-                continue;
+        // Iterate through each data row and apply the combined filter logic.
+        for (List<Object> row : dataRows) {
+            boolean rowMatches;
+            if (operator == LogicalOperator.AND) {
+                // For AND, every single rule must be true for the row to be a match.
+                rowMatches = rules.stream().allMatch(rule -> checkRule(row, header, rule));
+            } else { // OR
+                // For OR, any single rule can be true for the row to be a match.
+                rowMatches = rules.stream().anyMatch(rule -> checkRule(row, header, rule));
             }
 
-            String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
-            for (List<Object> row : dataRows) {
-                Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-                if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
-                    filteredRows.add(row);
-                }
+            if (rowMatches) {
+                results.add(row);
             }
-
-            String filterName = String.format("Filtered_by_%s_on_%s", rule.getSourceValue().isEmpty() ? "empty" : rule.getSourceValue(), rule.getTargetColumn()).replaceAll("[^a-zA-Z0-9.-]", "_");
-            results.put(filterName, filteredRows);
         }
 
         return results;
     }
 
-    public int countMatches(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, FilterRule rule) throws IOException, InvalidFormatException {
-        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false); // Use in-memory reader
-        if (allData.isEmpty()) return 0;
-
-        List<String> header;
-        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
-            Sheet sheet = workbook.getSheet(sheetName);
-            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
-        }
-
-        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
-        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
-        int count = 0;
-
+    /**
+     * Checks if a single row matches a single filter rule.
+     *
+     * @param row    The list of objects representing the row's cell values.
+     * @param header The list of header strings.
+     * @param rule   The {@link FilterRule} to check against.
+     * @return True if the row matches the rule, false otherwise.
+     */
+    private boolean checkRule(List<Object> row, List<String> header, FilterRule rule) {
         int targetColIndex = header.indexOf(rule.getTargetColumn());
-        if (targetColIndex == -1) return 0;
-
-        String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
-        for (List<Object> row : dataRows) {
-            Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-            if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
-                count++;
-            }
+        // If the target column specified in the rule doesn't exist in the header, it can't be a match.
+        if (targetColIndex == -1) {
+            return false;
         }
-        return count;
+
+        Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+        String sourceValue = rule.getSourceValue();
+
+        return isMatch(cellObject, sourceValue, rule.isTrimWhitespace());
     }
 
+    /**
+     * Performs a case-insensitive comparison between a cell's value and a source value,
+     * with an option to trim whitespace. Also handles null/empty checks.
+     *
+     * @param cellObject   The cell's value as an Object.
+     * @param sourceValue  The value to compare against.
+     * @param trim         Whether to trim whitespace from the cell's value before comparing.
+     * @return True if the values are considered a match, false otherwise.
+     */
     private boolean isMatch(Object cellObject, String sourceValue, boolean trim) {
         String cellValue = (cellObject == null) ? "" : cellObject.toString();
         if (trim) {
             cellValue = cellValue.trim();
         }
+        // If the source value is empty, we are specifically looking for empty cells.
         if (sourceValue.isEmpty()) {
             return cellValue.isEmpty();
         }

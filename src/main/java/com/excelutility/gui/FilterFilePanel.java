@@ -1,5 +1,6 @@
 package com.excelutility.gui;
 
+import com.excelutility.core.CanonicalNameBuilder;
 import com.excelutility.core.ConcatenationMode;
 import com.excelutility.io.ExcelReader;
 import net.miginfocom.swing.MigLayout;
@@ -18,9 +19,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.excelutility.core.CanonicalNameBuilder;
 
-
+/**
+ * A panel for selecting an Excel file and a specific sheet from it.
+ * Includes functionality for searching sheets and detecting multi-row headers.
+ */
 public class FilterFilePanel extends JPanel {
 
     private final JTextField fileField = new JTextField();
@@ -34,6 +37,11 @@ public class FilterFilePanel extends JPanel {
     private final Component parent;
     private List<String> allSheetNames = new ArrayList<>();
 
+    /**
+     * Constructs a new file selection panel.
+     * @param title  The title to display in the panel's border.
+     * @param parent The parent component, used for dialog positioning.
+     */
     public FilterFilePanel(String title, Component parent) {
         this.parent = parent;
         setLayout(new MigLayout("fillx", "[][grow][]", ""));
@@ -49,7 +57,7 @@ public class FilterFilePanel extends JPanel {
         add(new JLabel("Search Sheet:"));
         add(searchField, "growx, span 2, wrap");
         add(new JLabel("Sheet:"));
-        add(sheetCombo, "growx, span 2, wrap");
+        add(sheetCombo, "growx, span 2, wrap, gaptop 5");
         add(detectHeaderButton, "span, growx, gaptop 5");
 
         openButton.addActionListener(e -> selectFile());
@@ -93,9 +101,9 @@ public class FilterFilePanel extends JPanel {
                 .filter(sheet -> sheet.toLowerCase().contains(searchTerm))
                 .collect(Collectors.toList());
 
-        DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) sheetCombo.getModel();
-        model.removeAllElements();
+        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
         model.addAll(filteredSheets);
+        sheetCombo.setModel(model);
 
         if (sheetCombo.getItemCount() > 0) {
             sheetCombo.setSelectedIndex(0);
@@ -124,6 +132,10 @@ public class FilterFilePanel extends JPanel {
         }
     }
 
+    /**
+     * Gets the canonical column headers from the selected sheet, respecting multi-row header settings.
+     * @return A list of header strings.
+     */
     public List<String> getColumnNames() {
         if (selectedFile == null || getSelectedSheet() == null) {
             return new ArrayList<>();

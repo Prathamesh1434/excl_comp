@@ -76,15 +76,16 @@ public class FileConfigPanel extends JPanel {
         add(singleHeaderSpinner, "wrap");
         add(detectHeaderButton, "span, growx, wrap, gaptop 5");
 
-        add(new JSeparator(), "span, growx, gaptop 5");
-        add(new JLabel("Actions:"), "span, split 2, gaptop 5");
-        add(autoSuggestButton);
+        add(new JSeparator(), "span, growx, wrap, gaptop 5");
+
+        add(new JLabel("Actions:"), "gaptop 5");
+        add(autoSuggestButton, "span 3, split 2, growx");
         add(filterButton, "wrap");
 
-        add(new JLabel("Saved Filters:"), "span, split 3, gaptop 5");
-        add(savedFiltersCombo, "growx");
+        add(new JLabel("Saved Filters:"), "gaptop 5");
+        add(savedFiltersCombo, "span 3, split 3, growx");
         add(loadFilterButton);
-        add(clearFilterButton);
+        add(clearFilterButton, "wrap");
 
         // --- Action Listeners ---
         openButton.addActionListener(e -> selectFile());

@@ -23,6 +23,10 @@ import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
+/**
+ * The main panel for the "Filter Excel Data" mode.
+ * This class orchestrates the entire filtering workflow, from file selection to exporting results.
+ */
 public class FilterPanel extends JPanel {
 
     private static final Logger logger = LoggerFactory.getLogger(FilterPanel.class);
@@ -36,7 +40,7 @@ public class FilterPanel extends JPanel {
     private final FilterRulesPanel filterRulesPanel;
     private final FilteringService filteringService = new FilteringService();
 
-    private final JCheckBox mergeOption;
+    private final JComboBox<FilteringService.LogicalOperator> logicalOperatorCombo;
     private Color selectedColor = Color.YELLOW;
 
     public FilterPanel() {
@@ -86,7 +90,7 @@ public class FilterPanel extends JPanel {
 
         JPanel actionPanel = new JPanel(new MigLayout("wrap 1", "[grow]"));
         JButton addFilterButton = new JButton("Add Filter from Selection");
-        mergeOption = new JCheckBox("Merge all results into one file", true);
+        logicalOperatorCombo = new JComboBox<>(FilteringService.LogicalOperator.values());
         JButton colorButton = new JButton("Set Highlight Color");
         JButton downloadButton = new JButton("Download Filtered Results");
 
@@ -98,8 +102,9 @@ public class FilterPanel extends JPanel {
         actionPanel.add(searchButton, "wrap, gaptop 5");
 
         actionPanel.add(addFilterButton, "growx, gaptop 10");
-        actionPanel.add(mergeOption, "growx");
-        actionPanel.add(colorButton, "growx");
+        actionPanel.add(new JLabel("Filter Logic:"), "gaptop 10");
+        actionPanel.add(logicalOperatorCombo, "growx");
+        actionPanel.add(colorButton, "growx, gaptop 10");
         actionPanel.add(downloadButton, "growx, gaptop 20");
         bottomPanel.add(actionPanel);
 
@@ -123,17 +128,26 @@ public class FilterPanel extends JPanel {
         });
     }
 
+    /**
+     * Filters the preview tables based on the entered search text.
+     * @param text The text to search for.
+     */
     private void searchTables(String text) {
         if (text == null || text.trim().isEmpty()) {
             ((TableRowSorter) dataPreviewTable.getRowSorter()).setRowFilter(null);
             ((TableRowSorter) filterValuesPreviewTable.getRowSorter()).setRowFilter(null);
         } else {
+            // Case-insensitive search
             RowFilter<Object, Object> rf = RowFilter.regexFilter("(?i)" + Pattern.quote(text));
             ((TableRowSorter) dataPreviewTable.getRowSorter()).setRowFilter(rf);
             ((TableRowSorter) filterValuesPreviewTable.getRowSorter()).setRowFilter(rf);
         }
     }
 
+    /**
+     * Applies common configuration to a JTable.
+     * @param table The table to configure.
+     */
     private void configureTable(JTable table) {
         table.setShowGrid(true);
         table.setGridColor(Color.LIGHT_GRAY);
@@ -143,6 +157,10 @@ public class FilterPanel extends JPanel {
         table.setFont(new Font("Lucida Sans Unicode", Font.PLAIN, 12));
     }
 
+    /**
+     * Adjusts the column widths of a table to fit the content.
+     * @param table The table whose columns to resize.
+     */
     private void adjustColumnWidths(JTable table) {
         for (int column = 0; column < table.getColumnCount(); column++) {
             int width = 150; // Min width
@@ -155,6 +173,9 @@ public class FilterPanel extends JPanel {
         }
     }
 
+    /**
+     * Opens a color chooser dialog to select the highlight color for exported results.
+     */
     private void chooseColor() {
         Color newColor = JColorChooser.showDialog(this, "Choose Highlight Color", selectedColor);
         if (newColor != null) {
@@ -162,6 +183,9 @@ public class FilterPanel extends JPanel {
         }
     }
 
+    /**
+     * Initiates the process of filtering the data and downloading the results to an Excel file.
+     */
     private void downloadResults() {
         List<FilterRule> rules = filterRulesPanel.getRules();
         if (rules.isEmpty()) {
@@ -182,34 +206,33 @@ public class FilterPanel extends JPanel {
             }
 
             final String finalFilePath = filePath;
-            final boolean merge = mergeOption.isSelected();
-            logger.info("Starting export. Merge: {}, Color: {}", merge, selectedColor);
+            final FilteringService.LogicalOperator operator = (FilteringService.LogicalOperator) logicalOperatorCombo.getSelectedItem();
+            logger.info("Starting export. Operator: {}, Color: {}", operator, selectedColor);
 
-            new SwingWorker<Void, Void>() {
+            new SwingWorker<List<List<Object>>, Void>() {
                 @Override
-                protected Void doInBackground() throws Exception {
-                    Map<String, List<List<Object>>> filteredData = filteringService.filter(
+                protected List<List<Object>> doInBackground() throws Exception {
+                    return filteringService.filter(
                             dataFilePanel.getFilePath(),
                             dataFilePanel.getSelectedSheet(),
                             dataFilePanel.getHeaderRowIndices(),
                             dataFilePanel.getConcatenationMode(),
-                            rules
+                            rules,
+                            operator
                     );
-
-                    if (filteredData.isEmpty()) {
-                        throw new Exception("No data matched the specified filters.");
-                    }
-
-                    SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, merge, selectedColor);
-                    return null;
                 }
 
                 @Override
                 protected void done() {
                     try {
-                        get();
-                        logger.info("Export completed successfully.");
-                        JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Results exported successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                        List<List<Object>> filteredData = get();
+                        int recordCount = filteredData.isEmpty() ? 0 : filteredData.size() - 1;
+                        logger.info("Exporting {} records.", recordCount);
+
+                        Map<String, List<List<Object>>> results = Map.of("Filtered_Results", filteredData);
+                        SimpleExcelWriter.writeFilteredResults(finalFilePath, results, true, selectedColor);
+
+                        JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Results exported successfully! " + recordCount + " records saved.", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
                     } catch (Exception e) {
                         logger.error("Export failed.", e);
                         JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
@@ -219,6 +242,9 @@ public class FilterPanel extends JPanel {
         }
     }
 
+    /**
+     * Guides the user through the process of creating one or more filter rules based on their table selection.
+     */
     private void createFilterFromSelection() {
         int[] selectedRows = filterValuesPreviewTable.getSelectedRows();
         int[] selectedCols = filterValuesPreviewTable.getSelectedColumns();
@@ -260,40 +286,16 @@ public class FilterPanel extends JPanel {
                     for (String target : selectedTargets) {
                         FilterRule rule = new FilterRule(sourceType, sourceValue, target, trim);
                         logger.info("Creating new filter rule: {}", rule);
-                        int rowIndex = filterRulesPanel.addRule(rule);
-                        calculateAndDisplayCount(rule, rowIndex);
+                        filterRulesPanel.addRule(rule);
                     }
                 }
             }
         }
     }
 
-    private void calculateAndDisplayCount(FilterRule rule, int rowIndex) {
-        new SwingWorker<Integer, Void>() {
-            @Override
-            protected Integer doInBackground() throws Exception {
-                return filteringService.countMatches(
-                        dataFilePanel.getFilePath(),
-                        dataFilePanel.getSelectedSheet(),
-                        dataFilePanel.getHeaderRowIndices(),
-                        dataFilePanel.getConcatenationMode(),
-                        rule
-                );
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    int count = get();
-                    filterRulesPanel.updateRuleCount(rowIndex, count);
-                } catch (InterruptedException | ExecutionException e) {
-                    logger.error("Failed to count matches for rule: {}", rule, e);
-                    filterRulesPanel.updateRuleCount(rowIndex, -1); // Indicate error
-                }
-            }
-        }.execute();
-    }
-
+    /**
+     * Kicks off the SwingWorkers to load the preview data for both selected files.
+     */
     private void loadPreviews() {
         // Data file can be large, so preview is fine
         loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable, true);
@@ -301,6 +303,15 @@ public class FilterPanel extends JPanel {
         loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable, false);
     }
 
+    /**
+     * Loads data from an Excel file into a JTable model in a background thread.
+     * @param panel The panel containing the file info.
+     * @param model The table model to populate.
+     * @param rowLimit The maximum number of rows to load (-1 for all).
+     * @param errorTitle The title for any error dialogs.
+     * @param table The table to adjust column widths for.
+     * @param useStreaming Whether to use the memory-efficient streaming reader.
+     */
     private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle, JTable table, boolean useStreaming) {
         String filePath = panel.getFilePath();
         String sheetName = panel.getSelectedSheet();

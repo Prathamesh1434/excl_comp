@@ -10,6 +10,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * A dialog that allows the user to select one or more target columns from a list
+ * to apply a filter to. It includes a search field to filter the list of columns.
+ */
 public class FilterTargetDialog extends JDialog {
 
     private JList<String> columnList;
@@ -17,6 +21,12 @@ public class FilterTargetDialog extends JDialog {
     private JCheckBox trimWhitespaceCheckbox;
     private final List<String> allColumns;
 
+    /**
+     * Constructs the dialog.
+     *
+     * @param owner            The parent frame.
+     * @param availableColumns The complete list of column names to display for selection.
+     */
     public FilterTargetDialog(Frame owner, List<String> availableColumns) {
         super(owner, "Select Target Column(s) for Filter", true);
         this.allColumns = availableColumns;
@@ -33,7 +43,7 @@ public class FilterTargetDialog extends JDialog {
         add(new JScrollPane(columnList), "grow");
 
         trimWhitespaceCheckbox = new JCheckBox("Trim whitespace from target column(s) before filtering", true);
-        add(trimWhitespaceCheckbox, "growx");
+        add(trimWhitespaceCheckbox, "growx, gaptop 5");
 
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
@@ -81,10 +91,16 @@ public class FilterTargetDialog extends JDialog {
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
     }
 
+    /**
+     * @return The list of column names selected by the user.
+     */
     public List<String> getSelectedColumns() {
         return selectedColumns;
     }
 
+    /**
+     * @return True if the user selected the "Trim Whitespace" option, false otherwise.
+     */
     public boolean isTrimWhitespaceSelected() {
         return trimWhitespaceCheckbox.isSelected();
     }

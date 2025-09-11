@@ -4,27 +4,30 @@ import com.excelutility.core.FilterRule;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
+/**
+ * A panel that displays a list of currently configured filter rules in a table.
+ */
 public class FilterRulesPanel extends JPanel {
 
     private final DefaultTableModel tableModel;
     private final List<FilterRule> rules = new ArrayList<>();
     private final JTable rulesTable;
 
+    /**
+     * Constructs the panel containing the filter rules table and a clear button.
+     */
     public FilterRulesPanel() {
         setLayout(new MigLayout("fill, insets 5", "[grow]", "[grow][]"));
         setBorder(BorderFactory.createTitledBorder("Configured Filters"));
 
-        tableModel = new DefaultTableModel(new String[]{"Filter Type", "Filter Value", "Target Column", "Record Count"}, 0);
+        tableModel = new DefaultTableModel(new String[]{"Filter Type", "Filter Value", "Target Column"}, 0);
         rulesTable = new JTable(tableModel);
         rulesTable.setEnabled(false); // Make table read-only
-        rulesTable.getColumnModel().getColumn(3).setCellRenderer(new RecordCountRenderer());
 
         add(new JScrollPane(rulesTable), "grow, wrap");
 
@@ -34,45 +37,32 @@ public class FilterRulesPanel extends JPanel {
         clearButton.addActionListener(e -> clearRules());
     }
 
-    public int addRule(FilterRule rule) {
+    /**
+     * Adds a new filter rule to the internal list and updates the display table.
+     * @param rule The {@link FilterRule} to add.
+     */
+    public void addRule(FilterRule rule) {
         rules.add(rule);
-        Vector<Object> row = new Vector<>();
+        Vector<String> row = new Vector<>();
         row.add(rule.getSourceType().toString());
         row.add(rule.getSourceValue());
         row.add(rule.getTargetColumn());
-        row.add("Calculating..."); // Placeholder for count
         tableModel.addRow(row);
-        return tableModel.getRowCount() - 1; // Return the index of the new row
     }
 
-    public void updateRuleCount(int rowIndex, int count) {
-        tableModel.setValueAt(count, rowIndex, 3);
-    }
-
+    /**
+     * Removes all filter rules from the list and clears the display table.
+     */
     public void clearRules() {
         rules.clear();
         tableModel.setRowCount(0);
     }
 
+    /**
+     * Gets a copy of the list of currently configured filter rules.
+     * @return A new list containing the active {@link FilterRule} objects.
+     */
     public List<FilterRule> getRules() {
         return new ArrayList<>(rules);
-    }
-
-    private static class RecordCountRenderer extends DefaultTableCellRenderer {
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            if (value instanceof Integer) {
-                int count = (Integer) value;
-                if (count == 0) {
-                    c.setForeground(Color.RED);
-                } else {
-                    c.setForeground(new Color(0, 128, 0)); // Dark Green
-                }
-            } else {
-                c.setForeground(Color.BLUE); // "Calculating..."
-            }
-            return c;
-        }
     }
 }

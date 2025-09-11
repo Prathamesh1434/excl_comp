@@ -10,7 +10,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class FilteringServiceTest {
@@ -35,7 +36,7 @@ public class FilteringServiceTest {
         data.add(Arrays.asList(6, "Frank", null, "Active")); // Empty cell
         SimpleExcelWriter.write(data, "Sheet1", dataFilePath);
 
-        // Create filter file
+        // Create filter file (used in some old manual tests, can be ignored for these unit tests)
         List<List<Object>> filterData = new ArrayList<>();
         filterData.add(Arrays.asList("Cities", "Names", "Female"));
         filterData.add(Arrays.asList("New York", "Alice", "Yes"));
@@ -54,8 +55,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
-        List<List<Object>> filteredRows = results.values().iterator().next();
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.OR);
         assertEquals(5, filteredRows.size()); // Header + 4 rows
     }
 
@@ -64,8 +64,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
-        List<List<Object>> filteredRows = results.values().iterator().next();
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.OR);
         assertEquals(3, filteredRows.size()); // Header + 2 rows
     }
 
@@ -75,8 +74,7 @@ public class FilteringServiceTest {
         // This should filter where Status == "Female"
         rules.add(new FilterRule(FilterRule.SourceType.BY_COLUMN, "Female", "Status", true));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
-        List<List<Object>> filteredRows = results.values().iterator().next();
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.OR);
         assertEquals(2, filteredRows.size()); // Header + 1 row
         assertEquals("Eve", filteredRows.get(1).get(1));
     }
@@ -86,8 +84,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "San Francisco", "City", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
-        List<List<Object>> filteredRows = results.values().iterator().next();
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.OR);
         assertEquals(1, filteredRows.size()); // Header only
     }
 
@@ -96,23 +93,53 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "", "City", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
-        List<List<Object>> filteredRows = results.values().iterator().next();
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.OR);
         assertEquals(2, filteredRows.size()); // Header + 1 row
         assertEquals("Frank", filteredRows.get(1).get(1));
     }
 
     @Test
-    void testCountMatchesWithTrim() throws Exception {
-        FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "  New York  ", "City", true);
-        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule);
-        assertEquals(2, count);
+    void testFilterWithOrOperator() throws Exception {
+        List<FilterRule> rules = new ArrayList<>();
+        // City is "Los Angeles" (Bob) OR Name is "David" (David)
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "Los Angeles", "City", false));
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "David", "Name", false));
+
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.OR);
+
+        assertEquals(3, filteredRows.size()); // Header + Bob + David
+
+        // Check that the correct rows were returned, regardless of order
+        List<String> names = filteredRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
+        assertTrue(names.contains("Bob"));
+        assertTrue(names.contains("David"));
     }
 
     @Test
-    void testCountMatchesWithoutTrim() throws Exception {
-        FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false);
-        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule);
-        assertEquals(1, count);
+    void testFilterWithAndOperator() throws Exception {
+        List<FilterRule> rules = new ArrayList<>();
+        // City is "New York" (trimmed) AND Status is "Active"
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true));
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false));
+
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.AND);
+
+        assertEquals(3, filteredRows.size()); // Header + Alice + Charlie
+
+        List<String> names = filteredRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
+        assertTrue(names.contains("Alice"));
+        assertTrue(names.contains("Charlie"));
+    }
+
+    @Test
+    void testFilterWithAndOperatorNoResults() throws Exception {
+        List<FilterRule> rules = new ArrayList<>();
+        // City is "New York" AND Name is "Bob"
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false));
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "Bob", "Name", false));
+
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.AND);
+
+        assertEquals(1, filteredRows.size()); // Header only
     }
 }
