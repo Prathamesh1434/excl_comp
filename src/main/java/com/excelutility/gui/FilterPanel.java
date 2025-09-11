@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 
 public class FilterPanel extends JPanel {
 
@@ -60,9 +63,7 @@ public class FilterPanel extends JPanel {
         // Data Preview Table
         dataPreviewModel = new DefaultTableModel();
         dataPreviewTable = new JTable(dataPreviewModel);
-        dataPreviewTable.setShowGrid(true);
-        dataPreviewTable.setGridColor(Color.LIGHT_GRAY);
-        dataPreviewTable.setAutoCreateRowSorter(true);
+        configureTable(dataPreviewTable);
         JScrollPane dataPreviewScroll = new JScrollPane(dataPreviewTable);
         dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview (First 50 rows)"));
         centerSplit.setLeftComponent(dataPreviewScroll);
@@ -70,10 +71,8 @@ public class FilterPanel extends JPanel {
         // Filter Values Preview Table
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
+        configureTable(filterValuesPreviewTable);
         filterValuesPreviewTable.setCellSelectionEnabled(true);
-        filterValuesPreviewTable.setShowGrid(true);
-        filterValuesPreviewTable.setGridColor(Color.LIGHT_GRAY);
-        filterValuesPreviewTable.setAutoCreateRowSorter(true);
         JScrollPane filterValuesPreviewScroll = new JScrollPane(filterValuesPreviewTable);
         filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data) - Double-click a cell to create a filter"));
         centerSplit.setRightComponent(filterValuesPreviewScroll);
@@ -91,7 +90,14 @@ public class FilterPanel extends JPanel {
         JButton colorButton = new JButton("Set Highlight Color");
         JButton downloadButton = new JButton("Download Filtered Results");
 
-        actionPanel.add(addFilterButton, "growx");
+        JTextField searchField = new JTextField();
+        JButton searchButton = new JButton("Search Previews");
+
+        actionPanel.add(new JLabel("Preview Search:"), "split 2");
+        actionPanel.add(searchField, "growx");
+        actionPanel.add(searchButton, "wrap, gaptop 5");
+
+        actionPanel.add(addFilterButton, "growx, gaptop 10");
         actionPanel.add(mergeOption, "growx");
         actionPanel.add(colorButton, "growx");
         actionPanel.add(downloadButton, "growx, gaptop 20");
@@ -105,6 +111,7 @@ public class FilterPanel extends JPanel {
         addFilterButton.addActionListener(e -> createFilterFromSelection());
         colorButton.addActionListener(e -> chooseColor());
         downloadButton.addActionListener(e -> downloadResults());
+        searchButton.addActionListener(e -> searchTables(searchField.getText()));
 
         filterValuesPreviewTable.addMouseListener(new MouseAdapter() {
             @Override
@@ -114,6 +121,38 @@ public class FilterPanel extends JPanel {
                 }
             }
         });
+    }
+
+    private void searchTables(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            ((TableRowSorter) dataPreviewTable.getRowSorter()).setRowFilter(null);
+            ((TableRowSorter) filterValuesPreviewTable.getRowSorter()).setRowFilter(null);
+        } else {
+            RowFilter<Object, Object> rf = RowFilter.regexFilter("(?i)" + Pattern.quote(text));
+            ((TableRowSorter) dataPreviewTable.getRowSorter()).setRowFilter(rf);
+            ((TableRowSorter) filterValuesPreviewTable.getRowSorter()).setRowFilter(rf);
+        }
+    }
+
+    private void configureTable(JTable table) {
+        table.setShowGrid(true);
+        table.setGridColor(Color.LIGHT_GRAY);
+        table.setAutoCreateRowSorter(true);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        // Use a font that has good Unicode character support
+        table.setFont(new Font("Lucida Sans Unicode", Font.PLAIN, 12));
+    }
+
+    private void adjustColumnWidths(JTable table) {
+        for (int column = 0; column < table.getColumnCount(); column++) {
+            int width = 150; // Min width
+            for (int row = 0; row < table.getRowCount(); row++) {
+                TableCellRenderer renderer = table.getCellRenderer(row, column);
+                Component comp = table.prepareRenderer(renderer, row, column);
+                width = Math.max(comp.getPreferredSize().width + 10, width);
+            }
+            table.getColumnModel().getColumn(column).setPreferredWidth(width);
+        }
     }
 
     private void chooseColor() {
@@ -209,13 +248,12 @@ public class FilterPanel extends JPanel {
             return; // User cancelled target selection
         }
 
-        // Iterate through each selected cell and create a rule
         for (int row : selectedRows) {
             for (int col : selectedCols) {
-                String cellValue = filterValuesPreviewTable.getValueAt(row, col).toString();
+                Object cellValueObj = filterValuesPreviewTable.getValueAt(row, col);
+                String cellValue = (cellValueObj == null) ? "" : cellValueObj.toString();
                 String columnName = filterValuesPreviewTable.getColumnName(col);
 
-                // For each cell, ask the user how to use it
                 FilterSourceDialog sourceDialog = new FilterSourceDialog((Frame) SwingUtilities.getWindowAncestor(this), cellValue, columnName);
                 sourceDialog.setVisible(true);
 
@@ -225,6 +263,7 @@ public class FilterPanel extends JPanel {
                 if (sourceType != null) {
                     for (String target : selectedTargets) {
                         FilterRule rule = new FilterRule(sourceType, sourceValue, target, trim);
+                        logger.info("Creating new filter rule: {}", rule);
                         int rowIndex = filterRulesPanel.addRule(rule);
                         calculateAndDisplayCount(rule, rowIndex);
                     }
@@ -264,11 +303,11 @@ public class FilterPanel extends JPanel {
     }
 
     private void loadPreviews() {
-        loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview");
-        loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview");
+        loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable);
+        loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable);
     }
 
-    private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle) {
+    private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle, JTable table) {
         String filePath = panel.getFilePath();
         String sheetName = panel.getSelectedSheet();
 
@@ -311,6 +350,7 @@ public class FilterPanel extends JPanel {
                     }
 
                     model.setDataVector(dataVector, headerVector);
+                    adjustColumnWidths(table);
 
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Could not load data: " + e.getMessage(), errorTitle, JOptionPane.ERROR_MESSAGE);

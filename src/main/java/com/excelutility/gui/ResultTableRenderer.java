@@ -30,6 +30,7 @@ public class ResultTableRenderer extends DefaultTableCellRenderer {
     @Override
     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
         Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+        c.setFont(new Font("Lucida Sans Unicode", Font.PLAIN, 12));
 
         if (!(table.getModel() instanceof ResultTableModel)) {
             return c;

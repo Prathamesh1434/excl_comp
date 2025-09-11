@@ -78,6 +78,8 @@ public class ExcelReader {
     public static List<List<Object>> read(String filePath, String sheetName, boolean useStreaming) throws IOException, InvalidFormatException {
         if (useStreaming && filePath.toLowerCase().endsWith(".xlsx")) {
             try {
+                // Note: Streaming read might not preserve blank cells perfectly depending on implementation.
+                // The current implementation is basic. A more robust one would handle cell references ('r' attribute).
                 return readStream(filePath, sheetName);
             } catch (Exception e) {
                 throw new IOException("Streaming read failed", e);
@@ -95,10 +97,20 @@ public class ExcelReader {
                 throw new IllegalArgumentException("Sheet '" + sheetName + "' not found in the workbook.");
             }
             DataFormatter dataFormatter = new DataFormatter();
+            int maxCols = 0;
+            for (Row row : sheet) {
+                maxCols = Math.max(maxCols, row.getLastCellNum());
+            }
+
             for (Row row : sheet) {
                 List<Object> rowData = new ArrayList<>();
-                for (Cell cell : row) {
-                    rowData.add(dataFormatter.formatCellValue(cell));
+                for (int i = 0; i < maxCols; i++) {
+                    Cell cell = row.getCell(i, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    if (cell == null) {
+                        rowData.add("");
+                    } else {
+                        rowData.add(dataFormatter.formatCellValue(cell));
+                    }
                 }
                 data.add(rowData);
             }
@@ -154,8 +166,9 @@ public class ExcelReader {
             }
 
             int lastRow = Math.min(sheet.getLastRowNum(), rowLimit - 1);
-            int maxCols = 0;
+            if (lastRow < 0) return data; // Empty sheet
 
+            int maxCols = 0;
             // First pass to find the max number of columns in the preview range
             for (int i = 0; i <= lastRow; i++) {
                 Row row = sheet.getRow(i);
