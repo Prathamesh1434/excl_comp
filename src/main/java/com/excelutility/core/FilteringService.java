@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 
 public class FilteringService {
 
-    public Map<String, List<List<Object>>> filter(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, List<FilterRule> rules, String filterFilePath, String filterSheetName, List<Integer> filterHeaderRows, ConcatenationMode filterConcatMode) throws IOException, InvalidFormatException {
-        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, true);
+    public Map<String, List<List<Object>>> filter(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, List<FilterRule> rules) throws IOException, InvalidFormatException {
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false); // Use in-memory reader
         if (allData.isEmpty()) {
             return new HashMap<>();
         }
@@ -43,25 +43,11 @@ public class FilteringService {
                 continue;
             }
 
-            if (rule.getSourceType() == FilterRule.SourceType.BY_VALUE) {
-                String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
-                for (List<Object> row : dataRows) {
-                    Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-                    if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
-                        filteredRows.add(row);
-                    }
-                }
-            } else if (rule.getSourceType() == FilterRule.SourceType.BY_COLUMN) {
-                List<String> filterValues = getFilterValuesFromColumn(filterFilePath, filterSheetName, filterHeaderRows, filterConcatMode, rule);
-                for (List<Object> row : dataRows) {
-                    Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-                    String cellValue = (cellObject == null) ? "" : cellObject.toString().toLowerCase();
-                    if (rule.isTrimWhitespace()) {
-                        cellValue = cellValue.trim();
-                    }
-                    if (filterValues.contains(cellValue)) {
-                        filteredRows.add(row);
-                    }
+            String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
+            for (List<Object> row : dataRows) {
+                Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+                if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
+                    filteredRows.add(row);
                 }
             }
 
@@ -72,8 +58,8 @@ public class FilteringService {
         return results;
     }
 
-    public int countMatches(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, FilterRule rule, String filterFilePath, String filterSheetName, List<Integer> filterHeaderRows, ConcatenationMode filterConcatMode) throws IOException, InvalidFormatException {
-        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, true);
+    public int countMatches(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, FilterRule rule) throws IOException, InvalidFormatException {
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false); // Use in-memory reader
         if (allData.isEmpty()) return 0;
 
         List<String> header;
@@ -89,25 +75,11 @@ public class FilteringService {
         int targetColIndex = header.indexOf(rule.getTargetColumn());
         if (targetColIndex == -1) return 0;
 
-        if (rule.getSourceType() == FilterRule.SourceType.BY_VALUE) {
-            String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
-            for (List<Object> row : dataRows) {
-                Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-                if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
-                    count++;
-                }
-            }
-        } else if (rule.getSourceType() == FilterRule.SourceType.BY_COLUMN) {
-            List<String> filterValues = getFilterValuesFromColumn(filterFilePath, filterSheetName, filterHeaderRows, filterConcatMode, rule);
-            for (List<Object> row : dataRows) {
-                Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-                String cellValue = (cellObject == null) ? "" : cellObject.toString().toLowerCase();
-                if (rule.isTrimWhitespace()) {
-                    cellValue = cellValue.trim();
-                }
-                if (filterValues.contains(cellValue)) {
-                    count++;
-                }
+        String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
+        for (List<Object> row : dataRows) {
+            Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+            if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
+                count++;
             }
         }
         return count;
@@ -122,30 +94,5 @@ public class FilteringService {
             return cellValue.isEmpty();
         }
         return cellValue.equalsIgnoreCase(sourceValue);
-    }
-
-    private List<String> getFilterValuesFromColumn(String filePath, String sheetName, List<Integer> headerRows, ConcatenationMode concatMode, FilterRule rule) throws IOException, InvalidFormatException {
-        List<List<Object>> filterValuesData = ExcelReader.read(filePath, sheetName, true);
-        if (filterValuesData.isEmpty()) return new ArrayList<>();
-
-        List<String> filterHeader;
-        try (Workbook workbook = WorkbookFactory.create(new File(filePath))) {
-            Sheet sheet = workbook.getSheet(sheetName);
-            filterHeader = CanonicalNameBuilder.buildCanonicalHeaders(sheet, headerRows, concatMode, " | ");
-        }
-
-        int filterColIndex = filterHeader.indexOf(rule.getSourceValue());
-        if (filterColIndex == -1) return new ArrayList<>();
-
-        int filterDataStartRow = headerRows.isEmpty() ? 1 : headerRows.stream().max(Integer::compareTo).get() + 1;
-
-        return filterValuesData.stream()
-                .skip(filterDataStartRow)
-                .map(row -> {
-                    Object cellObject = (filterColIndex < row.size()) ? row.get(filterColIndex) : null;
-                    String val = (cellObject == null) ? "" : cellObject.toString().toLowerCase();
-                    return rule.isTrimWhitespace() ? val.trim() : val;
-                })
-                .collect(Collectors.toList());
     }
 }

@@ -26,19 +26,20 @@ public class FilteringServiceTest {
 
         // Create data file with extra whitespace and a row to test column name filtering
         List<List<Object>> data = new ArrayList<>();
-        data.add(Arrays.asList("ID", "Name", "City"));
-        data.add(Arrays.asList(1, "Alice", "  New York  "));
-        data.add(Arrays.asList(2, "Bob", "Los Angeles"));
-        data.add(Arrays.asList(3, "Charlie", "New York"));
-        data.add(Arrays.asList(4, "David", "  Chicago"));
-        data.add(Arrays.asList(5, "Frank", null)); // Empty cell
+        data.add(Arrays.asList("ID", "Name", "City", "Status"));
+        data.add(Arrays.asList(1, "Alice", "  New York  ", "Active"));
+        data.add(Arrays.asList(2, "Bob", "Los Angeles", "Inactive"));
+        data.add(Arrays.asList(3, "Charlie", "New York", "Active"));
+        data.add(Arrays.asList(4, "David", "  Chicago", "Active"));
+        data.add(Arrays.asList(5, "Eve", "Chicago", "Female")); // To test BY_COLUMN
+        data.add(Arrays.asList(6, "Frank", null, "Active")); // Empty cell
         SimpleExcelWriter.write(data, "Sheet1", dataFilePath);
 
         // Create filter file
         List<List<Object>> filterData = new ArrayList<>();
-        filterData.add(Arrays.asList("Cities", "Names"));
-        filterData.add(Arrays.asList("New York", "Alice"));
-        filterData.add(Arrays.asList("Chicago", "David"));
+        filterData.add(Arrays.asList("Cities", "Names", "Female"));
+        filterData.add(Arrays.asList("New York", "Alice", "Yes"));
+        filterData.add(Arrays.asList("Chicago", "David", "No"));
         SimpleExcelWriter.write(filterData, "Sheet1", filterFilePath);
     }
 
@@ -51,12 +52,11 @@ public class FilteringServiceTest {
     @Test
     void testFilterByValue() throws Exception {
         List<FilterRule> rules = new ArrayList<>();
-        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false));
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
         List<List<Object>> filteredRows = results.values().iterator().next();
-        assertEquals(2, filteredRows.size()); // Header + 1 row
-        assertEquals("Charlie", filteredRows.get(1).get(1));
+        assertEquals(5, filteredRows.size()); // Header + 4 rows
     }
 
     @Test
@@ -64,19 +64,21 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(3, filteredRows.size()); // Header + 2 rows
     }
 
     @Test
-    void testFilterByColumnValues() throws Exception {
+    void testFilterByColumnName() throws Exception {
         List<FilterRule> rules = new ArrayList<>();
-        rules.add(new FilterRule(FilterRule.SourceType.BY_COLUMN, "Cities", "City", true));
+        // This should filter where Status == "Female"
+        rules.add(new FilterRule(FilterRule.SourceType.BY_COLUMN, "Female", "Status", true));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
         List<List<Object>> filteredRows = results.values().iterator().next();
-        assertEquals(4, filteredRows.size()); // Header + 3 rows (Alice, Charlie, David)
+        assertEquals(2, filteredRows.size()); // Header + 1 row
+        assertEquals("Eve", filteredRows.get(1).get(1));
     }
 
     @Test
@@ -84,7 +86,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "San Francisco", "City", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(1, filteredRows.size()); // Header only
     }
@@ -94,7 +96,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "", "City", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(2, filteredRows.size()); // Header + 1 row
         assertEquals("Frank", filteredRows.get(1).get(1));
@@ -103,14 +105,14 @@ public class FilteringServiceTest {
     @Test
     void testCountMatchesWithTrim() throws Exception {
         FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "  New York  ", "City", true);
-        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule);
         assertEquals(2, count);
     }
 
     @Test
     void testCountMatchesWithoutTrim() throws Exception {
         FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false);
-        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule);
         assertEquals(1, count);
     }
 }

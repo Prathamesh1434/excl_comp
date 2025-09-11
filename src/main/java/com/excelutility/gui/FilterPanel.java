@@ -193,11 +193,7 @@ public class FilterPanel extends JPanel {
                             dataFilePanel.getSelectedSheet(),
                             dataFilePanel.getHeaderRowIndices(),
                             dataFilePanel.getConcatenationMode(),
-                            rules,
-                            filterValuesFilePanel.getFilePath(),
-                            filterValuesFilePanel.getSelectedSheet(),
-                            filterValuesFilePanel.getHeaderRowIndices(),
-                            filterValuesFilePanel.getConcatenationMode()
+                            rules
                     );
 
                     if (filteredData.isEmpty()) {
@@ -281,11 +277,7 @@ public class FilterPanel extends JPanel {
                         dataFilePanel.getSelectedSheet(),
                         dataFilePanel.getHeaderRowIndices(),
                         dataFilePanel.getConcatenationMode(),
-                        rule,
-                        filterValuesFilePanel.getFilePath(),
-                        filterValuesFilePanel.getSelectedSheet(),
-                        filterValuesFilePanel.getHeaderRowIndices(),
-                        filterValuesFilePanel.getConcatenationMode()
+                        rule
                 );
             }
 
