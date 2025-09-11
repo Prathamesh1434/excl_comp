@@ -146,9 +146,13 @@ public class FilterPanel extends JPanel {
                     Map<String, List<List<Object>>> filteredData = filteringService.filter(
                             dataFilePanel.getFilePath(),
                             dataFilePanel.getSelectedSheet(),
+                            dataFilePanel.getHeaderRowIndices(),
+                            dataFilePanel.getConcatenationMode(),
                             rules,
                             filterValuesFilePanel.getFilePath(),
-                            filterValuesFilePanel.getSelectedSheet()
+                            filterValuesFilePanel.getSelectedSheet(),
+                            filterValuesFilePanel.getHeaderRowIndices(),
+                            filterValuesFilePanel.getConcatenationMode()
                     );
 
                     if (filteredData.isEmpty()) {
@@ -183,41 +187,40 @@ public class FilterPanel extends JPanel {
             return;
         }
 
-        // For simplicity, we'll use the first selected cell to determine the source type
-        String firstCellValue = filterValuesPreviewTable.getValueAt(selectedRows[0], selectedCols[0]).toString();
-        String firstColumnName = filterValuesPreviewTable.getColumnName(selectedCols[0]);
+        List<String> targetColumns = dataFilePanel.getColumnNames();
+        if (targetColumns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Could not retrieve column names from the data file. Please ensure it is loaded correctly.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-        FilterSourceDialog sourceDialog = new FilterSourceDialog((Frame) SwingUtilities.getWindowAncestor(this), firstCellValue, firstColumnName);
-        sourceDialog.setVisible(true);
+        FilterTargetDialog targetDialog = new FilterTargetDialog((Frame) SwingUtilities.getWindowAncestor(this), targetColumns);
+        targetDialog.setVisible(true);
 
-        FilterRule.SourceType sourceType = sourceDialog.getSelectedType();
+        List<String> selectedTargets = targetDialog.getSelectedColumns();
+        boolean trim = targetDialog.isTrimWhitespaceSelected();
 
-        if (sourceType != null) {
-            List<String> targetColumns = dataFilePanel.getColumnNames();
-            if (targetColumns.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Could not retrieve column names from the data file. Please ensure it is loaded correctly.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+        if (selectedTargets.isEmpty()) {
+            return; // User cancelled target selection
+        }
 
-            FilterTargetDialog targetDialog = new FilterTargetDialog((Frame) SwingUtilities.getWindowAncestor(this), targetColumns);
-            targetDialog.setVisible(true);
+        // Iterate through each selected cell and create a rule
+        for (int row : selectedRows) {
+            for (int col : selectedCols) {
+                String cellValue = filterValuesPreviewTable.getValueAt(row, col).toString();
+                String columnName = filterValuesPreviewTable.getColumnName(col);
 
-            List<String> selectedTargets = targetDialog.getSelectedColumns();
-            boolean trim = targetDialog.isTrimWhitespaceSelected();
+                // For each cell, ask the user how to use it
+                FilterSourceDialog sourceDialog = new FilterSourceDialog((Frame) SwingUtilities.getWindowAncestor(this), cellValue, columnName);
+                sourceDialog.setVisible(true);
 
-            if (!selectedTargets.isEmpty()) {
-                for (int row : selectedRows) {
-                    for (int col : selectedCols) {
-                        String sourceValue = filterValuesPreviewTable.getValueAt(row, col).toString();
-                        if (sourceType == FilterRule.SourceType.BY_COLUMN) {
-                            sourceValue = filterValuesPreviewTable.getColumnName(col);
-                        }
+                FilterRule.SourceType sourceType = sourceDialog.getSelectedType();
+                String sourceValue = sourceDialog.getSelectedValue();
 
-                        for (String target : selectedTargets) {
-                            FilterRule rule = new FilterRule(sourceType, sourceValue, target, trim);
-                            int rowIndex = filterRulesPanel.addRule(rule);
-                            calculateAndDisplayCount(rule, rowIndex);
-                        }
+                if (sourceType != null) {
+                    for (String target : selectedTargets) {
+                        FilterRule rule = new FilterRule(sourceType, sourceValue, target, trim);
+                        int rowIndex = filterRulesPanel.addRule(rule);
+                        calculateAndDisplayCount(rule, rowIndex);
                     }
                 }
             }
@@ -231,9 +234,13 @@ public class FilterPanel extends JPanel {
                 return filteringService.countMatches(
                         dataFilePanel.getFilePath(),
                         dataFilePanel.getSelectedSheet(),
+                        dataFilePanel.getHeaderRowIndices(),
+                        dataFilePanel.getConcatenationMode(),
                         rule,
                         filterValuesFilePanel.getFilePath(),
-                        filterValuesFilePanel.getSelectedSheet()
+                        filterValuesFilePanel.getSelectedSheet(),
+                        filterValuesFilePanel.getHeaderRowIndices(),
+                        filterValuesFilePanel.getConcatenationMode()
                 );
             }
 
@@ -287,11 +294,14 @@ public class FilterPanel extends JPanel {
                     Vector<String> headerVector = new Vector<>(headers);
                     model.setColumnIdentifiers(headerVector);
 
-                    Vector<Vector<Object>> dataVector = new Vector<>();
-                    List<List<Object>> dataRows = data.subList(panel.getHeaderRowIndices().size(), data.size());
+                    int headerRowCount = panel.getHeaderRowIndices().isEmpty() ? 1 : panel.getHeaderRowIndices().size();
 
-                    for(List<Object> row : dataRows) {
-                        dataVector.add(new Vector<>(row));
+                    Vector<Vector<Object>> dataVector = new Vector<>();
+                    if (data.size() > headerRowCount) {
+                        List<List<Object>> dataRows = data.subList(headerRowCount, data.size());
+                        for(List<Object> row : dataRows) {
+                            dataVector.add(new Vector<>(row));
+                        }
                     }
 
                     model.setDataVector(dataVector, headerVector);

@@ -2,7 +2,11 @@ package com.excelutility.core;
 
 import com.excelutility.io.ExcelReader;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,20 +16,26 @@ import java.util.stream.Collectors;
 
 public class FilteringService {
 
-    public Map<String, List<List<Object>>> filter(String dataFilePath, String sheetName, List<FilterRule> rules, String filterFilePath, String filterSheetName) throws IOException, InvalidFormatException {
+    public Map<String, List<List<Object>>> filter(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, List<FilterRule> rules, String filterFilePath, String filterSheetName, List<Integer> filterHeaderRows, ConcatenationMode filterConcatMode) throws IOException, InvalidFormatException {
         List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, true);
         if (allData.isEmpty()) {
             return new HashMap<>();
         }
 
-        List<Object> header = allData.get(0);
-        List<List<Object>> dataRows = allData.subList(1, allData.size());
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
+        }
+
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
 
         Map<String, List<List<Object>>> results = new HashMap<>();
 
         for (FilterRule rule : rules) {
             List<List<Object>> filteredRows = new ArrayList<>();
-            filteredRows.add(header); // Add header to each result set
+            filteredRows.add(new ArrayList<>(header));
 
             int targetColIndex = header.indexOf(rule.getTargetColumn());
             if (targetColIndex == -1) {
@@ -47,22 +57,7 @@ public class FilteringService {
                     }
                 }
             } else if (rule.getSourceType() == FilterRule.SourceType.BY_COLUMN) {
-                List<List<Object>> filterValuesData = ExcelReader.read(filterFilePath, filterSheetName, true);
-                if (filterValuesData.isEmpty()) continue;
-
-                List<Object> filterHeader = filterValuesData.get(0);
-                int filterColIndex = filterHeader.indexOf(rule.getSourceValue());
-                if (filterColIndex == -1) continue;
-
-                List<String> filterValues = filterValuesData.stream()
-                        .skip(1)
-                        .filter(row -> filterColIndex < row.size() && row.get(filterColIndex) != null)
-                        .map(row -> {
-                            String val = row.get(filterColIndex).toString().toLowerCase();
-                            return rule.isTrimWhitespace() ? val.trim() : val;
-                        })
-                        .collect(Collectors.toList());
-
+                List<String> filterValues = getFilterValuesFromColumn(filterFilePath, filterSheetName, filterHeaderRows, filterConcatMode, rule);
                 for (List<Object> row : dataRows) {
                     if (targetColIndex < row.size() && row.get(targetColIndex) != null) {
                         String cellValue = row.get(targetColIndex).toString().toLowerCase();
@@ -83,20 +78,22 @@ public class FilteringService {
         return results;
     }
 
-    public int countMatches(String dataFilePath, String sheetName, FilterRule rule, String filterFilePath, String filterSheetName) throws IOException, InvalidFormatException {
+    public int countMatches(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, FilterRule rule, String filterFilePath, String filterSheetName, List<Integer> filterHeaderRows, ConcatenationMode filterConcatMode) throws IOException, InvalidFormatException {
         List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, true);
-        if (allData.size() < 2) {
-            return 0;
+        if (allData.isEmpty()) return 0;
+
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
         }
 
-        List<Object> header = allData.get(0);
-        List<List<Object>> dataRows = allData.subList(1, allData.size());
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
         int count = 0;
 
         int targetColIndex = header.indexOf(rule.getTargetColumn());
-        if (targetColIndex == -1) {
-            return 0;
-        }
+        if (targetColIndex == -1) return 0;
 
         if (rule.getSourceType() == FilterRule.SourceType.BY_VALUE) {
             String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
@@ -112,22 +109,7 @@ public class FilteringService {
                 }
             }
         } else if (rule.getSourceType() == FilterRule.SourceType.BY_COLUMN) {
-            List<List<Object>> filterValuesData = ExcelReader.read(filterFilePath, filterSheetName, true);
-            if (filterValuesData.isEmpty()) return 0;
-
-            List<Object> filterHeader = filterValuesData.get(0);
-            int filterColIndex = filterHeader.indexOf(rule.getSourceValue());
-            if (filterColIndex == -1) return 0;
-
-            List<String> filterValues = filterValuesData.stream()
-                    .skip(1)
-                    .filter(row -> filterColIndex < row.size() && row.get(filterColIndex) != null)
-                    .map(row -> {
-                        String val = row.get(filterColIndex).toString().toLowerCase();
-                        return rule.isTrimWhitespace() ? val.trim() : val;
-                    })
-                    .collect(Collectors.toList());
-
+            List<String> filterValues = getFilterValuesFromColumn(filterFilePath, filterSheetName, filterHeaderRows, filterConcatMode, rule);
             for (List<Object> row : dataRows) {
                 if (targetColIndex < row.size() && row.get(targetColIndex) != null) {
                     String cellValue = row.get(targetColIndex).toString().toLowerCase();
@@ -141,5 +123,30 @@ public class FilteringService {
             }
         }
         return count;
+    }
+
+    private List<String> getFilterValuesFromColumn(String filePath, String sheetName, List<Integer> headerRows, ConcatenationMode concatMode, FilterRule rule) throws IOException, InvalidFormatException {
+        List<List<Object>> filterValuesData = ExcelReader.read(filePath, sheetName, true);
+        if (filterValuesData.isEmpty()) return new ArrayList<>();
+
+        List<String> filterHeader;
+        try (Workbook workbook = WorkbookFactory.create(new File(filePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            filterHeader = CanonicalNameBuilder.buildCanonicalHeaders(sheet, headerRows, concatMode, " | ");
+        }
+
+        int filterColIndex = filterHeader.indexOf(rule.getSourceValue());
+        if (filterColIndex == -1) return new ArrayList<>();
+
+        int filterDataStartRow = headerRows.isEmpty() ? 1 : headerRows.stream().max(Integer::compareTo).get() + 1;
+
+        return filterValuesData.stream()
+                .skip(filterDataStartRow)
+                .filter(row -> filterColIndex < row.size() && row.get(filterColIndex) != null)
+                .map(row -> {
+                    String val = row.get(filterColIndex).toString().toLowerCase();
+                    return rule.isTrimWhitespace() ? val.trim() : val;
+                })
+                .collect(Collectors.toList());
     }
 }

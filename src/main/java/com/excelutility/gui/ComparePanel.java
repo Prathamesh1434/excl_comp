@@ -41,8 +41,10 @@ public class ComparePanel extends JPanel {
 
     private List<String> sourceHeaders;
     private List<String> targetHeaders;
+    private final AppContainer appContainer;
 
-    public ComparePanel() {
+    public ComparePanel(AppContainer appContainer) {
+        this.appContainer = appContainer;
         setLayout(new BorderLayout());
 
         // --- Main Panel ---
@@ -124,6 +126,11 @@ public class ComparePanel extends JPanel {
     public JMenuBar createMenuBar() {
         JMenuBar menuBar = new JMenuBar();
         JMenu fileMenu = new JMenu("File");
+
+        JMenuItem backItem = new JMenuItem("Back to Mode Selection");
+        backItem.addActionListener(e -> appContainer.navigateTo("modeSelection"));
+        fileMenu.add(backItem);
+        fileMenu.addSeparator();
 
         JMenuItem saveProfileItem = new JMenuItem("Save Profile As...");
         saveProfileItem.addActionListener(e -> saveProfile());

@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,7 +52,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(2, filteredRows.size()); // Header + 1 row
         assertEquals("Charlie", filteredRows.get(1).get(1));
@@ -62,19 +63,19 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(3, filteredRows.size()); // Header + 2 rows
     }
 
     @Test
-    void testFilterByColumn() throws Exception {
+    void testFilterByColumnValues() throws Exception {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_COLUMN, "Cities", "City", true));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         List<List<Object>> filteredRows = results.values().iterator().next();
-        assertEquals(4, filteredRows.size()); // Header + 3 rows
+        assertEquals(4, filteredRows.size()); // Header + 3 rows (Alice, Charlie, David)
     }
 
     @Test
@@ -82,7 +83,7 @@ public class FilteringServiceTest {
         List<FilterRule> rules = new ArrayList<>();
         rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "San Francisco", "City", false));
 
-        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", rules, filterFilePath, "Sheet1");
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(1, filteredRows.size()); // Header only
     }
@@ -90,14 +91,14 @@ public class FilteringServiceTest {
     @Test
     void testCountMatchesWithTrim() throws Exception {
         FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "  New York  ", "City", true);
-        int count = filteringService.countMatches(dataFilePath, "Sheet1", rule, filterFilePath, "Sheet1");
+        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         assertEquals(2, count);
     }
 
     @Test
     void testCountMatchesWithoutTrim() throws Exception {
         FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", false);
-        int count = filteringService.countMatches(dataFilePath, "Sheet1", rule, filterFilePath, "Sheet1");
+        int count = filteringService.countMatches(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rule, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         assertEquals(1, count);
     }
 }

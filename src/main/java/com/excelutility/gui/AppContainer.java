@@ -22,7 +22,7 @@ public class AppContainer extends JFrame {
         mainPanel = new JPanel(cardLayout);
 
         modeSelectionPanel = new ModeSelectionPanel(this);
-        comparePanel = new ComparePanel();
+        comparePanel = new ComparePanel(this);
         filterPanel = new FilterPanel();
 
         // The compare panel has its own complex menu bar
