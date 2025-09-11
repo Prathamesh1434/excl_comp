@@ -303,11 +303,13 @@ public class FilterPanel extends JPanel {
     }
 
     private void loadPreviews() {
-        loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable);
-        loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable);
+        // Data file can be large, so preview is fine
+        loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable, true);
+        // Filter values file should be read fully and accurately
+        loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable, false);
     }
 
-    private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle, JTable table) {
+    private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle, JTable table, boolean useStreaming) {
         String filePath = panel.getFilePath();
         String sheetName = panel.getSelectedSheet();
 
@@ -322,7 +324,7 @@ public class FilterPanel extends JPanel {
                 if (rowLimit > 0) {
                     return ExcelReader.readPreview(filePath, sheetName, rowLimit);
                 } else {
-                    return ExcelReader.read(filePath, sheetName, true);
+                    return ExcelReader.read(filePath, sheetName, useStreaming);
                 }
             }
 
