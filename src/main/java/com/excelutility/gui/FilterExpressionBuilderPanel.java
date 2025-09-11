@@ -16,8 +16,10 @@ import java.awt.event.ActionListener;
 public class FilterExpressionBuilderPanel extends JPanel {
 
     private final LogicalGroupPanel rootGroup;
+    private final FilterPanel panelProvider;
 
-    public FilterExpressionBuilderPanel() {
+    public FilterExpressionBuilderPanel(FilterPanel panelProvider) {
+        this.panelProvider = panelProvider;
         setLayout(new MigLayout("fill, insets 5", "[grow]"));
         setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
 
@@ -61,7 +63,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
             FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
             targetGroup.removeComponent(sourcePanel);
         };
-        FilterRulePanel newRulePanel = new FilterRulePanel(rule, deleteListener);
+        FilterRulePanel newRulePanel = new FilterRulePanel(rule, panelProvider, deleteListener);
         targetGroup.addComponent(newRulePanel);
     }
 

@@ -12,15 +12,19 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
+import java.util.stream.Collectors;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
@@ -41,6 +45,8 @@ public class FilterPanel extends JPanel {
     private final FilterExpressionBuilderPanel filterExpressionBuilderPanel;
     private final FilteringService filteringService = new FilteringService();
     private final JLabel totalMatchesLabel;
+
+    private enum ProcessDestination { VIEW, EXPORT, CALCULATE_ONLY }
 
     private Color selectedColor = Color.YELLOW;
 
@@ -86,7 +92,7 @@ public class FilterPanel extends JPanel {
 
         // --- Bottom Panel for Rules and Actions ---
         JPanel bottomPanel = new JPanel(new MigLayout("fill", "[grow][nogrid]", "[grow]"));
-        filterExpressionBuilderPanel = new FilterExpressionBuilderPanel();
+        filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
         bottomPanel.add(filterExpressionBuilderPanel, "grow");
 
         JPanel actionPanel = new JPanel(new MigLayout("wrap 1", "[grow]"));
@@ -94,17 +100,31 @@ public class FilterPanel extends JPanel {
         JButton downloadButton = new JButton("Download Filtered Results");
 
         JTextField searchField = new JTextField();
-        JButton searchButton = new JButton("Search Previews");
+        actionPanel.add(new JLabel("Preview Search:"));
+        actionPanel.add(searchField, "growx, wrap, gaptop 5");
 
-        actionPanel.add(new JLabel("Preview Search:"), "split 2");
-        actionPanel.add(searchField, "growx");
-        actionPanel.add(searchButton, "wrap, gaptop 5");
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                searchTables(searchField.getText());
+            }
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                searchTables(searchField.getText());
+            }
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                searchTables(searchField.getText());
+            }
+        });
 
         actionPanel.add(colorButton, "growx, gaptop 10");
 
-        JButton calculateButton = new JButton("Calculate Total Matches");
+        JButton calculateButton = new JButton("Calculate Total");
+        JButton viewButton = new JButton("View Overall Result");
         totalMatchesLabel = new JLabel("Total Matches: N/A");
-        actionPanel.add(calculateButton, "split 2, gaptop 20");
+        actionPanel.add(calculateButton, "split 3, gaptop 20");
+        actionPanel.add(viewButton);
         actionPanel.add(totalMatchesLabel, "gapleft 10");
 
         actionPanel.add(downloadButton, "growx, gaptop 10");
@@ -116,8 +136,10 @@ public class FilterPanel extends JPanel {
         // Action Listeners
         previewButton.addActionListener(e -> loadPreviews());
         colorButton.addActionListener(e -> chooseColor());
-        downloadButton.addActionListener(e -> downloadResults());
-        searchButton.addActionListener(e -> searchTables(searchField.getText()));
+        downloadButton.addActionListener(e -> startFilterProcess(ProcessDestination.EXPORT));
+        viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
+        calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
+
 
         // The listener for creating filters is now attached to the buttons in the builder UI
         configureAddRuleListeners(filterExpressionBuilderPanel.getRootGroup());
@@ -131,8 +153,6 @@ public class FilterPanel extends JPanel {
                 }
             }
         });
-
-        calculateButton.addActionListener(e -> startFilterProcess(false));
     }
 
     /**
@@ -210,13 +230,10 @@ public class FilterPanel extends JPanel {
     }
 
     /**
-     * Initiates the filtering process, which can either just calculate the total
-     * matches or proceed to a full export.
-     *
-     * @param isExport If true, the process will end with a file save dialog.
-     *                 If false, it will only update the total matches label.
+     * Initiates the filtering process for the overall expression.
+     * @param destination The final action to take (View, Export, or just Calculate).
      */
-    private void startFilterProcess(boolean isExport) {
+    private void startFilterProcess(ProcessDestination destination) {
         com.excelutility.core.expression.FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
 
         String dataFilePath = dataFilePanel.getFilePath();
@@ -247,13 +264,32 @@ public class FilterPanel extends JPanel {
                     int recordCount = filteredData.isEmpty() ? 0 : filteredData.size() - 1;
                     totalMatchesLabel.setText("Total Matches: " + recordCount);
 
-                    if (isExport) {
-                        if (recordCount == 0) {
-                            JOptionPane.showMessageDialog(FilterPanel.this, "No records match the filter criteria. Nothing to export.", "No Matches", JOptionPane.INFORMATION_MESSAGE);
-                            return;
-                        }
-                        promptAndSaveResults(filteredData);
+                    if (destination == ProcessDestination.CALCULATE_ONLY) {
+                        return; // We're done, just wanted the count
                     }
+
+                    if (recordCount == 0) {
+                        JOptionPane.showMessageDialog(FilterPanel.this, "No records match the filter criteria.", "No Matches", JOptionPane.INFORMATION_MESSAGE);
+                        return;
+                    }
+
+                    // For View or Export, we need to select columns
+                    List<String> allColumns = dataFilePanel.getColumnNames();
+                    ColumnSelectionDialog colDialog = new ColumnSelectionDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), allColumns);
+                    colDialog.setVisible(true);
+
+                    if (colDialog.isCancelled()) {
+                        return;
+                    }
+                    List<String> selectedColumns = colDialog.getSelectedColumns();
+                    List<List<Object>> resultData = projectColumns(filteredData, selectedColumns);
+
+                    if (destination == ProcessDestination.VIEW) {
+                        new ResultsViewerDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Overall Filter Results", resultData).setVisible(true);
+                    } else if (destination == ProcessDestination.EXPORT) {
+                        promptAndSaveResults(resultData);
+                    }
+
                 } catch (Exception e) {
                     logger.error("Filtering process failed.", e);
                     totalMatchesLabel.setText("Total Matches: Error");
@@ -288,11 +324,99 @@ public class FilterPanel extends JPanel {
         }
     }
 
-    /**
-     * Initiates the process of filtering the data and downloading the results to an Excel file.
-     */
-    private void downloadResults() {
-        startFilterProcess(true);
+    public void viewResultsForRule(FilterRule rule) {
+        startPerRuleProcess(rule, false);
+    }
+
+    public void downloadResultsForRule(FilterRule rule) {
+        startPerRuleProcess(rule, true);
+    }
+
+    private void startPerRuleProcess(FilterRule rule, boolean isExport) {
+        com.excelutility.core.expression.FilterExpression expression = new com.excelutility.core.expression.RuleNode(rule);
+
+        String dataFilePath = dataFilePanel.getFilePath();
+        String sheetName = dataFilePanel.getSelectedSheet();
+        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
+            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 1. Show column selection dialog
+        List<String> allColumns = dataFilePanel.getColumnNames();
+        if (allColumns == null || allColumns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Could not determine columns from data file.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        ColumnSelectionDialog colDialog = new ColumnSelectionDialog((Frame) SwingUtilities.getWindowAncestor(this), allColumns);
+        colDialog.setVisible(true);
+
+        if (colDialog.isCancelled()) {
+            return;
+        }
+        List<String> selectedColumns = colDialog.getSelectedColumns();
+
+        // 2. Run filtering in a background worker
+        new SwingWorker<List<List<Object>>, Void>() {
+            @Override
+            protected List<List<Object>> doInBackground() throws Exception {
+                List<List<Object>> filteredData = filteringService.filter(
+                        dataFilePath,
+                        sheetName,
+                        dataFilePanel.getHeaderRowIndices(),
+                        dataFilePanel.getConcatenationMode(),
+                        expression
+                );
+                // Project to selected columns
+                return projectColumns(filteredData, selectedColumns);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<List<Object>> resultData = get();
+                    if (isExport) {
+                        promptAndSaveResults(resultData);
+                    } else {
+                        new ResultsViewerDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Results for Rule: " + rule, resultData).setVisible(true);
+                    }
+                } catch (Exception e) {
+                    logger.error("Per-rule filtering process failed.", e);
+                    JOptionPane.showMessageDialog(FilterPanel.this, "Failed to apply rule: " + e.getCause().getMessage(), "Filtering Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private List<List<Object>> projectColumns(List<List<Object>> data, List<String> columnsToKeep) {
+        if (data.isEmpty() || columnsToKeep.isEmpty()) {
+            return data;
+        }
+        List<List<Object>> projectedData = new ArrayList<>();
+        List<String> originalHeader = data.get(0).stream().map(Object::toString).collect(java.util.stream.Collectors.toList());
+        List<Integer> indicesToKeep = new ArrayList<>();
+
+        // Create a new header with only the columns to keep, in the order they were selected
+        List<Object> newHeader = new ArrayList<>();
+        for(String column : columnsToKeep) {
+            int index = originalHeader.indexOf(column);
+            if (index != -1) {
+                indicesToKeep.add(index);
+                newHeader.add(column);
+            }
+        }
+        projectedData.add(newHeader);
+
+        // Process data rows
+        for (int i = 1; i < data.size(); i++) {
+            List<Object> originalRow = data.get(i);
+            List<Object> projectedRow = new ArrayList<>();
+            for (int index : indicesToKeep) {
+                projectedRow.add(index < originalRow.size() ? originalRow.get(index) : null);
+            }
+            projectedData.add(projectedRow);
+        }
+        return projectedData;
     }
 
     /**
