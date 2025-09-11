@@ -25,7 +25,7 @@ public class FilterRulePanel extends JPanel implements ExpressionNodeComponent {
      */
     public FilterRulePanel(FilterRule rule, FilterPanel panelProvider, ActionListener deleteListener) {
         this.rule = rule;
-        setLayout(new MigLayout("insets 5, fillx", "[grow][][]"));
+        setLayout(new MigLayout("insets 5, fillx", "[grow][][][]"));
         setBorder(BorderFactory.createEtchedBorder());
 
         String ruleText = String.format("<html><b>%s</b> where <b>%s</b> is <b>'%s'</b> (Trim: %s)</html>",

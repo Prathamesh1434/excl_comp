@@ -1,10 +1,11 @@
 package com.excelutility.excel;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Handles normalization of Excel data, including multi-row headers.
+ * Handles normalization of Excel data, including multi-row headers and individual cell values.
  */
 public class Normalizer {
 
@@ -52,5 +53,37 @@ public class Normalizer {
         normalizedData.add(combinedHeader);
         normalizedData.addAll(data.subList(headerRowsCount, data.size()));
         return normalizedData;
+    }
+
+    /**
+     * Normalizes a single cell's value into a consistent string representation.
+     * This includes handling nulls, converting numbers to strings without trailing ".0",
+     * trimming whitespace, and handling special character mappings (e.g., for tick marks).
+     *
+     * @param value The raw object value from a cell.
+     * @return A normalized string.
+     */
+    public static String normalizeValue(Object value) {
+        if (value == null) {
+            return "";
+        }
+
+        String s;
+        if (value instanceof Number) {
+            // Format numbers to avoid ".0" at the end of integers, but keep other decimals
+            DecimalFormat df = new DecimalFormat("#.##########");
+            s = df.format(value);
+        } else {
+            s = value.toString();
+        }
+
+        s = s.trim();
+
+        // Specific mapping for tick mark character if it's read as "P" (e.g., from Wingdings font)
+        if ("P".equals(s)) {
+            return "✓";
+        }
+
+        return s;
     }
 }

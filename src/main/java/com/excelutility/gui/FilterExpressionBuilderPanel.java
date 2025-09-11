@@ -27,29 +27,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
         rootGroup = new LogicalGroupPanel(null);
         add(rootGroup, "growx");
 
-        // Wire up the buttons on the root group
-        configureGroupPanel(rootGroup);
-    }
-
-    /**
-     * Configures the listeners for the buttons within any LogicalGroupPanel.
-     * @param groupPanel The panel whose buttons need listeners.
-     */
-    private void configureGroupPanel(LogicalGroupPanel groupPanel) {
-        // Listener for the "Add Group" button
-        groupPanel.getAddGroupButton().addActionListener(e -> {
-            // The delete listener for a subgroup removes it from its parent (this groupPanel)
-            ActionListener deleteListener = event -> {
-                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
-                groupPanel.removeComponent(sourceGroup);
-            };
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(deleteListener);
-            configureGroupPanel(newGroup); // Recursively configure the new group's buttons
-            groupPanel.addComponent(newGroup);
-        });
-
-        // The "Add Rule" button listener will be handled by the parent FilterPanel,
-        // which will then call addRuleToGroup(groupPanel, rule).
+        // The FilterPanel is now responsible for wiring up all buttons.
     }
 
     /**

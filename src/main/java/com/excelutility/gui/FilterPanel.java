@@ -16,6 +16,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -142,7 +143,7 @@ public class FilterPanel extends JPanel {
 
 
         // The listener for creating filters is now attached to the buttons in the builder UI
-        configureAddRuleListeners(filterExpressionBuilderPanel.getRootGroup());
+        configureGroupPanel(filterExpressionBuilderPanel.getRootGroup());
 
         // We can still allow double-clicking on the table as a shortcut to add a rule to the root group
         filterValuesPreviewTable.addMouseListener(new MouseAdapter() {
@@ -211,21 +212,29 @@ public class FilterPanel extends JPanel {
     }
 
     /**
-     * Recursively adds action listeners to the "Add Rule" buttons in the component hierarchy.
-     * @param groupPanel The panel to start the search from.
+     * Recursively adds action listeners to the buttons of a group panel and its future children.
+     * @param groupPanel The panel whose buttons need to be configured.
      */
-    private void configureAddRuleListeners(LogicalGroupPanel groupPanel) {
+    private void configureGroupPanel(LogicalGroupPanel groupPanel) {
+        // Configure the "Add Rule" button for this group
         groupPanel.getAddRuleButton().addActionListener(e -> {
             createFilterFromSelection(groupPanel);
         });
 
-        // Also configure any "Add Group" buttons to recursively set up their children
+        // Configure the "Add Group" button for this group
         groupPanel.getAddGroupButton().addActionListener(e -> {
-            // This listener is also configured in the builder panel, which adds the new group.
-            // We need to find the newly added group and configure its listeners.
-            // A bit tricky, might need a different approach, but for now, this shows intent.
-            // A better way is for the builder to return the new group and we configure it here.
-            // For now, this is a placeholder for the recursive configuration.
+            // The delete listener for the new subgroup will remove it from its parent (this groupPanel)
+            ActionListener deleteListener = event -> {
+                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                groupPanel.removeComponent(sourceGroup);
+            };
+
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(deleteListener);
+
+            // IMPORTANT: Recursively configure the new group's buttons before adding it
+            configureGroupPanel(newGroup);
+
+            groupPanel.addComponent(newGroup);
         });
     }
 
@@ -333,10 +342,12 @@ public class FilterPanel extends JPanel {
     }
 
     private void startPerRuleProcess(FilterRule rule, boolean isExport) {
+        logger.info("Starting per-rule process for rule: {}", rule);
         com.excelutility.core.expression.FilterExpression expression = new com.excelutility.core.expression.RuleNode(rule);
 
         String dataFilePath = dataFilePanel.getFilePath();
         String sheetName = dataFilePanel.getSelectedSheet();
+        logger.info("Data file: {}, Sheet: {}", dataFilePath, sheetName);
         if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
             JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
             return;
@@ -344,6 +355,7 @@ public class FilterPanel extends JPanel {
 
         // 1. Show column selection dialog
         List<String> allColumns = dataFilePanel.getColumnNames();
+        logger.info("All available columns for selection: {}", allColumns);
         if (allColumns == null || allColumns.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Could not determine columns from data file.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
@@ -352,9 +364,11 @@ public class FilterPanel extends JPanel {
         colDialog.setVisible(true);
 
         if (colDialog.isCancelled()) {
+            logger.warn("Column selection was cancelled.");
             return;
         }
         List<String> selectedColumns = colDialog.getSelectedColumns();
+        logger.info("User selected columns: {}", selectedColumns);
 
         // 2. Run filtering in a background worker
         new SwingWorker<List<List<Object>>, Void>() {
@@ -367,8 +381,14 @@ public class FilterPanel extends JPanel {
                         dataFilePanel.getConcatenationMode(),
                         expression
                 );
+                logger.info("Filtering service returned {} rows (including header).", filteredData.size());
                 // Project to selected columns
-                return projectColumns(filteredData, selectedColumns);
+                List<List<Object>> projectedData = projectColumns(filteredData, selectedColumns);
+                logger.info("Projected data has {} rows (including header).", projectedData.size());
+                if (!projectedData.isEmpty()) {
+                    logger.info("Projected header: {}", projectedData.get(0));
+                }
+                return projectedData;
             }
 
             @Override

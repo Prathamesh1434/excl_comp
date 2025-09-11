@@ -22,6 +22,8 @@ public class FilteringServiceTest {
     private FilteringService filteringService;
     private String dataFilePath = "target/test-files/data.xlsx";
     private String filterFilePath = "target/test-files/filters.xlsx";
+    private String specialCharsFilePath = "target/test-files/special_chars_test.xlsx";
+    private String multiHeaderFilePath = "target/test-files/multi_header_test.xlsx";
 
     @BeforeEach
     void setUp() throws IOException {
@@ -45,12 +47,29 @@ public class FilteringServiceTest {
         filterData.add(Arrays.asList("New York", "Alice", "Yes"));
         filterData.add(Arrays.asList("Chicago", "David", "No"));
         SimpleExcelWriter.write(filterData, "Sheet1", filterFilePath);
+
+        // Create special characters test file
+        List<List<Object>> specialData = new ArrayList<>();
+        specialData.add(Arrays.asList("ID", "Name", "Code", "Value"));
+        specialData.add(Arrays.asList(1, "Test A", "P", 100.0)); // "P" should become ✓
+        specialData.add(Arrays.asList(2, "Test B", "OK", 100));   // integer 100
+        specialData.add(Arrays.asList(3, "Test C", "FAIL", 100.5)); // double
+        SimpleExcelWriter.write(specialData, "Sheet1", specialCharsFilePath);
+
+        // Create multi-header test file
+        List<List<Object>> multiHeaderData = new ArrayList<>();
+        multiHeaderData.add(Arrays.asList("Group 1", "Group 1", "Group 2"));
+        multiHeaderData.add(Arrays.asList("ID", "Name", "Value"));
+        multiHeaderData.add(Arrays.asList("A1", "First", 99));
+        SimpleExcelWriter.write(multiHeaderData, "Data", multiHeaderFilePath);
     }
 
     @AfterEach
     void tearDown() {
         new File(dataFilePath).delete();
         new File(filterFilePath).delete();
+        new File(specialCharsFilePath).delete();
+        new File(multiHeaderFilePath).delete();
     }
 
     @Test
@@ -195,5 +214,41 @@ public class FilteringServiceTest {
         GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
         List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
         assertEquals(7, filteredRows.size()); // Header + 6 data rows
+    }
+
+    @Test
+    void testTickSymbolNormalization() throws Exception {
+        // The Normalizer should convert "P" in the file to "✓" for matching.
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "✓", "Code", false)));
+
+        List<List<Object>> filteredRows = filteringService.filter(specialCharsFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
+        assertEquals(2, filteredRows.size()); // Header + 1 row
+        assertEquals("Test A", filteredRows.get(1).get(1));
+    }
+
+    @Test
+    void testNumericNormalization() throws Exception {
+        // The Normalizer should convert 100.0 and 100 to "100" for matching.
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "100", "Value", false)));
+
+        List<List<Object>> filteredRows = filteringService.filter(specialCharsFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
+        assertEquals(3, filteredRows.size()); // Header + 2 rows
+        List<Object> names = filteredRows.stream().skip(1).map(row -> row.get(1)).collect(Collectors.toList());
+        assertTrue(names.contains("Test A"));
+        assertTrue(names.contains("Test B"));
+    }
+
+    @Test
+    void testMultiHeaderFiltering() throws Exception {
+        // Use header rows 0 and 1. The canonical name for the second column should be "Group 1 | Name".
+        List<Integer> headerRows = Arrays.asList(0, 1);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "First", "Group 1 | Name", false)));
+
+        List<List<Object>> filteredRows = filteringService.filter(multiHeaderFilePath, "Data", headerRows, ConcatenationMode.BREADCRUMB, root);
+        assertEquals(2, filteredRows.size()); // Header + 1 row
+        assertEquals("A1", filteredRows.get(1).get(0));
     }
 }

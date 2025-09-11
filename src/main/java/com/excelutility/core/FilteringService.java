@@ -1,5 +1,6 @@
 package com.excelutility.core;
 
+import com.excelutility.excel.Normalizer;
 import com.excelutility.io.ExcelReader;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -103,28 +104,26 @@ public class FilteringService {
         Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
         String sourceValue = rule.getSourceValue();
 
-        return isMatch(cellObject, sourceValue, rule.isTrimWhitespace());
+        // The trimWhitespace flag is now implicitly handled by the Normalizer.
+        return isMatch(cellObject, sourceValue);
     }
 
     /**
-     * Performs a case-insensitive comparison between a cell's value and a source value,
-     * with an option to trim whitespace. Also handles null/empty checks.
+     * Performs a normalized, case-insensitive comparison between a cell's value and a source value.
      *
      * @param cellObject   The cell's value as an Object.
      * @param sourceValue  The value to compare against.
-     * @param trim         Whether to trim whitespace from the cell's value before comparing.
      * @return True if the values are considered a match, false otherwise.
      */
-    private boolean isMatch(Object cellObject, String sourceValue, boolean trim) {
-        String cellValue = (cellObject == null) ? "" : cellObject.toString();
-        if (trim) {
-            cellValue = cellValue.trim();
-        }
+    private boolean isMatch(Object cellObject, String sourceValue) {
+        String normalizedCellValue = Normalizer.normalizeValue(cellObject);
+        String normalizedSourceValue = Normalizer.normalizeValue(sourceValue);
+
         // If the source value is empty, we are specifically looking for empty cells.
-        if (sourceValue.isEmpty()) {
-            return cellValue.isEmpty();
+        if (normalizedSourceValue.isEmpty()) {
+            return normalizedCellValue.isEmpty();
         }
-        return cellValue.equalsIgnoreCase(sourceValue);
+        return normalizedCellValue.equalsIgnoreCase(normalizedSourceValue);
     }
 
     /**
