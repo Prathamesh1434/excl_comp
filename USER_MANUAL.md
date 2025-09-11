@@ -7,7 +7,7 @@ Welcome to the Excel Utility! This guide will walk you through the features of t
 When you first start the application, you will be asked to choose a mode. You can switch between modes at any time by using the "File" > "Back to Mode Selection" menu item.
 
 -   **Compare Excel Files**: Use this mode to perform a detailed, cell-by-cell comparison of two Excel files.
--   **Filter Excel Data**: Use this mode to filter a main data file based on values from a second file.
+-   **Filter Excel Data**: Use this mode to filter a main data file based on values from a second file using a powerful logic builder.
 
 ---
 
@@ -31,7 +31,7 @@ This mode allows you to perform a detailed comparison of two Excel files.
 
 ## 3. Filter Excel Data Mode
 
-This mode allows you to filter one Excel file (the "Data File") using values from another Excel file (the "Filter Values File").
+This mode allows you to filter one Excel file (the "Data File") using values from another Excel file (the "Filter Values File"). It features a powerful logic builder that allows you to create complex, nested `AND`/`OR` conditions.
 
 ### Basic Workflow
 
@@ -41,34 +41,44 @@ This mode allows you to filter one Excel file (the "Data File") using values fro
 
 2.  **Select and Preview Sheets**:
     -   For each file, select the correct sheet from the dropdown. Use the "Search Sheet" box to quickly find a sheet in large workbooks.
-    -   Click the **"Load & Preview Files"** button to load the data into the preview tables. The preview tables have grid lines and can be sorted by clicking on the column headers.
+    -   Click the **"Load & Preview Files"** button to load the data into the preview tables.
 
 3.  **Define Header Rows (If Necessary)**:
-    -   If your files have complex, multi-row headers, click the **"Detect Header"** button for each file to correctly identify the header rows before creating filters.
+    -   If your files have complex headers, click the **"Detect Header"** button for each file to correctly identify the header rows before creating filters.
 
-4.  **Create Filter Rules**:
-    -   In the "Filter Values Preview" table, find a cell you want to use for filtering and **double-click** it (or select one or more cells and click "Add Filter from Selection").
-    -   A dialog will appear. Choose how you want to filter:
-        -   **Filter by Value**: Uses the exact value of the cell you clicked (e.g., "Yes").
-        -   **Filter using Column Name**: Uses the header of the column you clicked as the filter value (e.g., "Female").
-    -   A second dialog will appear. Select the column(s) from your **Data File** that you want to apply this filter to. You can also choose whether to "Trim whitespace" for more flexible matching.
-    -   The new filter rule will appear in the "Configured Filters" list. Repeat this step to add as many rules as you need.
+4.  **Build Your Filter Logic**:
+    -   The **"Filter Logic Builder"** is where you will construct your filter. It starts with a single "root" group.
+    -   **Adding a Rule**:
+        -   In the "Filter Values Preview" table, find a cell you want to use and **double-click** it. This will add a new filter rule to the root group.
+        -   Alternatively, click the **"Add Rule"** button inside any group in the builder. This will also prompt you to select cells from the preview table.
+        -   For each rule, you will be guided through two dialogs to select the target column in your Data File and the filter type (by value or by column name).
+    -   **Adding a Group**:
+        -   Click the **"Add Group"** button inside any existing group to create a nested group. This is how you create complex logic like `(Rule A AND Rule B) OR Rule C`.
+    -   **Setting Logic**:
+        -   Each group has its own **AND / OR dropdown**. Use this to control the logic for all the items directly inside that group.
+    -   **Deleting**:
+        -   Each rule and group has its own **"X"** or **"Delete Group"** button to allow you to remove it individually.
 
-5.  **Apply Filters and Download**:
-    -   In the action panel, choose your **Filter Logic**:
-        -   **AND**: A row in your Data File will only be included if it matches ALL of the rules you created.
-        -   **OR**: A row will be included if it matches AT LEAST ONE of the rules you created.
-    -   (Optional) Click **"Set Highlight Color"** to choose a color for the matching rows in the output file.
-    -   Click **"Download Filtered Results"**. This will apply your filter rules and prompt you to save the resulting Excel file.
+5.  **Calculate and Download**:
+    -   (Optional) For each individual rule, you can click **"Refresh Counts"** in the "Configured Filters" panel to see how many rows in the Data File match that specific rule.
+    -   (Optional) Click **"Calculate Total Matches"** to see the final number of records that match your complete logical expression.
+    -   Click **"Download Filtered Results"**. This will apply your full filter expression and prompt you to save the resulting Excel file.
 
-### Understanding the Filter Panel
+### Understanding the Filter Logic Builder
 
--   **Data File Panel**: Where you load the main file to be filtered.
--   **Filter Values File Panel**: Where you load the file containing the values to use as filters.
--   **Data Preview**: Shows a preview of your main data file.
--   **Filter Values Preview**: Shows the full content of your filter values file. This is the table you interact with to create filters.
--   **Configured Filters**: A list of all the filter rules you have created. Use the "Clear All Filters" button to start over.
--   **Action Panel**: Contains all the controls for creating and applying filters, setting options, and downloading the final report.
+The builder lets you create a tree of filter conditions.
+
+*   **Groups**: A group is a container for other items (rules or other groups). It has a dropdown to set its logic to `AND` or `OR`.
+*   **Rules**: A rule is a single filter condition.
+
+**Example:** To create the filter `(Status is 'Active' AND City is 'Chicago') OR (Name is 'Bob')`, you would:
+1.  In the root group, set the logic to `OR`.
+2.  Click "Add Group" to create a new nested group.
+3.  Inside this new group, set the logic to `AND`.
+4.  Click "Add Rule" inside the `AND` group twice to create the "Status" and "City" rules.
+5.  Go back to the root `OR` group and click "Add Rule" to create the "Name" rule.
+
+[Image of the Filter Logic Builder]
 
 ---
 *Thank you for using Excel Utility!*

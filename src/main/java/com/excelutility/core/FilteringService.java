@@ -93,7 +93,7 @@ public class FilteringService {
      * @param rule   The {@link FilterRule} to check against.
      * @return True if the row matches the rule, false otherwise.
      */
-    private boolean checkRule(List<Object> row, List<String> header, FilterRule rule) {
+    public boolean checkRule(List<Object> row, List<String> header, FilterRule rule) {
         int targetColIndex = header.indexOf(rule.getTargetColumn());
         // If the target column specified in the rule doesn't exist in the header, it can't be a match.
         if (targetColIndex == -1) {
@@ -125,5 +125,83 @@ public class FilteringService {
             return cellValue.isEmpty();
         }
         return cellValue.equalsIgnoreCase(sourceValue);
+    }
+
+    /**
+     * Counts the number of rows in an Excel sheet that match a single filter rule.
+     * This method is designed for providing quick feedback in the UI.
+     *
+     * @param dataFilePath     The path to the Excel file containing the data.
+     * @param sheetName        The name of the sheet to scan.
+     * @param dataHeaderRows   The indices of the header rows in the data file.
+     * @param dataConcatMode   The mode for concatenating multi-row headers.
+     * @param rule             The single {@link FilterRule} to check for matches.
+     * @return The total number of matching data rows (header is not counted).
+     * @throws IOException            If there is an error reading the file.
+     * @throws InvalidFormatException If the Excel file format is invalid.
+     */
+    public int countMatches(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, FilterRule rule) throws IOException, InvalidFormatException {
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
+        if (allData.isEmpty()) {
+            return 0;
+        }
+
+        // Build the canonical header to correctly map column names to indices.
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
+        }
+
+        // Determine where the actual data begins after the header rows.
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
+
+        int count = 0;
+        for (List<Object> row : dataRows) {
+            if (checkRule(row, header, rule)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Filters the data from an Excel sheet based on a hierarchical filter expression.
+     *
+     * @param dataFilePath     The path to the Excel file containing the data to be filtered.
+     * @param sheetName        The name of the sheet to filter.
+     * @param dataHeaderRows   The indices of the header rows in the data file.
+     * @param dataConcatMode   The mode for concatenating multi-row headers.
+     * @param expression       The root {@link com.excelutility.core.expression.FilterExpression} node.
+     * @return A single list of lists representing the filtered data, including the header row.
+     * @throws IOException            If there is an error reading the files.
+     * @throws InvalidFormatException If the Excel file format is invalid.
+     */
+    public List<List<Object>> filter(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, com.excelutility.core.expression.FilterExpression expression) throws IOException, InvalidFormatException {
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
+        if (allData.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
+        }
+
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
+
+        List<List<Object>> results = new ArrayList<>();
+        results.add(new ArrayList<>(header));
+
+        for (List<Object> row : dataRows) {
+            if (expression.evaluate(row, header, this)) {
+                results.add(row);
+            }
+        }
+
+        return results;
     }
 }

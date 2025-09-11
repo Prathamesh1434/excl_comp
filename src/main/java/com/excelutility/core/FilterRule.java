@@ -13,11 +13,21 @@ public class FilterRule {
         /**
          * Filter by matching a specific cell's value.
          */
-        BY_VALUE,
+        BY_VALUE("Value"),
         /**
          * Filter by using the name of a column as the literal value to match against.
          */
-        BY_COLUMN
+        BY_COLUMN("Column Name");
+
+        private final String displayName;
+
+        SourceType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
     }
 
     private final SourceType sourceType;

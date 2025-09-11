@@ -8,7 +8,6 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * A dialog that allows the user to select one or more target columns from a list
@@ -20,16 +19,32 @@ public class FilterTargetDialog extends JDialog {
     private List<String> selectedColumns = Collections.emptyList();
     private JCheckBox trimWhitespaceCheckbox;
     private final List<String> allColumns;
+    private boolean cancelled = true; // Default to cancelled state
 
     /**
-     * Constructs the dialog.
+     * Constructs the dialog with a default title.
      *
      * @param owner            The parent frame.
      * @param availableColumns The complete list of column names to display for selection.
      */
     public FilterTargetDialog(Frame owner, List<String> availableColumns) {
-        super(owner, "Select Target Column(s) for Filter", true);
+        this(owner, availableColumns, "Select Target Column(s) for Filter");
+    }
+
+    /**
+     * Constructs the dialog with a custom title.
+     *
+     * @param owner            The parent frame.
+     * @param availableColumns The complete list of column names to display for selection.
+     * @param title            The custom title for the dialog window.
+     */
+    public FilterTargetDialog(Frame owner, List<String> availableColumns, String title) {
+        super(owner, title, true);
         this.allColumns = availableColumns;
+        initComponents();
+    }
+
+    private void initComponents() {
         setLayout(new MigLayout("fill, wrap 1", "[grow]", "[][][grow][]"));
 
         add(new JLabel("Select one or more columns from the data file to apply the filter to:"), "growx");
@@ -47,22 +62,11 @@ public class FilterTargetDialog extends JDialog {
 
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
-            public void insertUpdate(DocumentEvent e) { filterList(); }
+            public void insertUpdate(DocumentEvent e) { filterList(searchField.getText()); }
             @Override
-            public void removeUpdate(DocumentEvent e) { filterList(); }
+            public void removeUpdate(DocumentEvent e) { filterList(searchField.getText()); }
             @Override
-            public void changedUpdate(DocumentEvent e) { filterList(); }
-
-            private void filterList() {
-                String searchTerm = searchField.getText().toLowerCase();
-                DefaultListModel<String> model = new DefaultListModel<>();
-                for (String col : allColumns) {
-                    if (col.toLowerCase().contains(searchTerm)) {
-                        model.addElement(col);
-                    }
-                }
-                columnList.setModel(model);
-            }
+            public void changedUpdate(DocumentEvent e) { filterList(searchField.getText()); }
         });
 
         JButton okButton = new JButton("OK");
@@ -72,12 +76,13 @@ public class FilterTargetDialog extends JDialog {
                 JOptionPane.showMessageDialog(this, "Please select at least one target column.", "Selection Required", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            this.cancelled = false; // Mark as not cancelled
             setVisible(false);
         });
 
         JButton cancelButton = new JButton("Cancel");
         cancelButton.addActionListener(e -> {
-            selectedColumns = Collections.emptyList();
+            // "cancelled" remains true by default
             setVisible(false);
         });
 
@@ -87,8 +92,19 @@ public class FilterTargetDialog extends JDialog {
         add(buttonPanel, "growx, right");
 
         setSize(400, 500);
-        setLocationRelativeTo(owner);
+        setLocationRelativeTo(getOwner());
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+    }
+
+    private void filterList(String searchTerm) {
+        String term = searchTerm.toLowerCase();
+        DefaultListModel<String> model = new DefaultListModel<>();
+        for (String col : allColumns) {
+            if (col.toLowerCase().contains(term)) {
+                model.addElement(col);
+            }
+        }
+        columnList.setModel(model);
     }
 
     /**
@@ -103,5 +119,12 @@ public class FilterTargetDialog extends JDialog {
      */
     public boolean isTrimWhitespaceSelected() {
         return trimWhitespaceCheckbox.isSelected();
+    }
+
+    /**
+     * @return True if the dialog was cancelled (closed without pressing OK), false otherwise.
+     */
+    public boolean isCancelled() {
+        return cancelled;
     }
 }

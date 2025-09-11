@@ -1,0 +1,22 @@
+package com.excelutility.core.expression;
+
+import com.excelutility.core.FilteringService;
+
+import java.util.List;
+
+/**
+ * Represents a node in a filter expression tree. This can be either a single rule
+ * or a group of other expressions.
+ */
+public interface FilterExpression {
+
+    /**
+     * Evaluates this expression node against a single row of data.
+     *
+     * @param row     The row of data to evaluate.
+     * @param header  The list of header strings for mapping columns.
+     * @param service The filtering service instance, used to access shared logic.
+     * @return True if the row matches the expression, false otherwise.
+     */
+    boolean evaluate(List<Object> row, List<String> header, FilteringService service);
+}

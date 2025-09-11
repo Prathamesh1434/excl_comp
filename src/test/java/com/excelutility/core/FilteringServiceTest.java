@@ -12,6 +12,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.excelutility.core.expression.GroupNode;
+import com.excelutility.core.expression.RuleNode;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class FilteringServiceTest {
@@ -141,5 +144,56 @@ public class FilteringServiceTest {
         List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, FilteringService.LogicalOperator.AND);
 
         assertEquals(1, filteredRows.size()); // Header only
+    }
+
+    @Test
+    void testFilterWithExpressionAnd() throws Exception {
+        // (City is "Chicago" AND Status is "Active") -> David
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Chicago", "City", true)));
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false)));
+
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
+        assertEquals(2, filteredRows.size()); // Header + David
+        assertEquals("David", filteredRows.get(1).get(1));
+    }
+
+    @Test
+    void testFilterWithExpressionOr() throws Exception {
+        // (Name is "Bob" OR Name is "Eve") -> Bob, Eve
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.OR);
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Bob", "Name", false)));
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Eve", "Name", false)));
+
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
+        assertEquals(3, filteredRows.size()); // Header + Bob + Eve
+        List<String> names = filteredRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
+        assertTrue(names.contains("Bob"));
+        assertTrue(names.contains("Eve"));
+    }
+
+    @Test
+    void testFilterWithNestedExpression() throws Exception {
+        // Status is "Active" AND (City is "Los Angeles" OR City is "Chicago") -> David
+        // This should not match Bob (Inactive) or Alice/Charlie (New York)
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false)));
+
+        GroupNode subGroup = new GroupNode(FilteringService.LogicalOperator.OR);
+        subGroup.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Los Angeles", "City", true)));
+        subGroup.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Chicago", "City", true)));
+        root.addChild(subGroup);
+
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
+        assertEquals(2, filteredRows.size()); // Header + David
+        assertEquals("David", filteredRows.get(1).get(1));
+    }
+
+    @Test
+    void testFilterWithEmptyGroup() throws Exception {
+        // An empty group should evaluate to true and not filter anything out.
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
+        assertEquals(7, filteredRows.size()); // Header + 6 data rows
     }
 }
