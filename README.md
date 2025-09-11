@@ -30,6 +30,9 @@ This mode allows you to filter one Excel file based on a list of values or entir
 -   **Flexible Filter Sources**: A dialog will ask if you want to filter by the specific **cell value** you clicked, or by all values in that cell's **column**.
 -   **Targeted Filtering**: After choosing your filter source, another dialog lets you apply the filter to one or more columns in your Data File. You can also choose to **trim whitespace** from the target column for more robust matching.
 -   **Immediate Record Counting**: As soon as a filter is created, the application runs a background check and displays the number of matching records. The count is color-coded: **green for > 0** records, **red for 0**.
+-   **Enhanced Previews**: Preview tables now have a grid-like appearance and support column sorting.
+-   **Sheet Search**: A new search bar allows you to dynamically filter the list of sheets in a workbook.
+-   **Empty Cell Filtering**: The tool now correctly handles filtering by empty or null cells.
 -   **Configurable Export**:
     -   Download all filtered results into a **single Excel file** with one sheet per filter, or as **separate files**.
     -   If a filter yields no results, an export file is still created with a "No rows matched" message.

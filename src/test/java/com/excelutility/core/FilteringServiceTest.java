@@ -24,13 +24,14 @@ public class FilteringServiceTest {
         filteringService = new FilteringService();
         new File(dataFilePath).getParentFile().mkdirs();
 
-        // Create data file with extra whitespace
+        // Create data file with extra whitespace and a row to test column name filtering
         List<List<Object>> data = new ArrayList<>();
         data.add(Arrays.asList("ID", "Name", "City"));
         data.add(Arrays.asList(1, "Alice", "  New York  "));
         data.add(Arrays.asList(2, "Bob", "Los Angeles"));
         data.add(Arrays.asList(3, "Charlie", "New York"));
         data.add(Arrays.asList(4, "David", "  Chicago"));
+        data.add(Arrays.asList(5, "Frank", null)); // Empty cell
         SimpleExcelWriter.write(data, "Sheet1", dataFilePath);
 
         // Create filter file
@@ -86,6 +87,17 @@ public class FilteringServiceTest {
         Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
         List<List<Object>> filteredRows = results.values().iterator().next();
         assertEquals(1, filteredRows.size()); // Header only
+    }
+
+    @Test
+    void testFilterByEmptyCell() throws Exception {
+        List<FilterRule> rules = new ArrayList<>();
+        rules.add(new FilterRule(FilterRule.SourceType.BY_VALUE, "", "City", false));
+
+        Map<String, List<List<Object>>> results = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, rules, filterFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY);
+        List<List<Object>> filteredRows = results.values().iterator().next();
+        assertEquals(2, filteredRows.size()); // Header + 1 row
+        assertEquals("Frank", filteredRows.get(1).get(1));
     }
 
     @Test

@@ -8,6 +8,8 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.File;
@@ -15,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import com.excelutility.core.CanonicalNameBuilder;
 
 
@@ -23,11 +26,13 @@ public class FilterFilePanel extends JPanel {
     private final JTextField fileField = new JTextField();
     private final JComboBox<String> sheetCombo = new JComboBox<>();
     private final JButton detectHeaderButton;
+    private final JTextField searchField = new JTextField();
 
     private List<Integer> headerRowIndices = new ArrayList<>();
     private ConcatenationMode concatenationMode = ConcatenationMode.LEAF_ONLY;
     private File selectedFile;
     private final Component parent;
+    private List<String> allSheetNames = new ArrayList<>();
 
     public FilterFilePanel(String title, Component parent) {
         this.parent = parent;
@@ -41,12 +46,22 @@ public class FilterFilePanel extends JPanel {
         add(new JLabel("File:"));
         add(fileField, "growx");
         add(openButton, "wrap");
+        add(new JLabel("Search Sheet:"));
+        add(searchField, "growx, span 2, wrap");
         add(new JLabel("Sheet:"));
         add(sheetCombo, "growx, span 2, wrap");
         add(detectHeaderButton, "span, growx, gaptop 5");
 
         openButton.addActionListener(e -> selectFile());
         detectHeaderButton.addActionListener(e -> detectHeader());
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { filterSheets(); }
+            @Override
+            public void removeUpdate(DocumentEvent e) { filterSheets(); }
+            @Override
+            public void changedUpdate(DocumentEvent e) { filterSheets(); }
+        });
     }
 
     private void selectFile() {
@@ -57,20 +72,33 @@ public class FilterFilePanel extends JPanel {
         if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
             this.selectedFile = chooser.getSelectedFile();
             fileField.setText(selectedFile.getAbsolutePath());
-            populateSheetCombo();
+            loadAllSheetNames();
+            filterSheets();
         }
     }
 
-    private void populateSheetCombo() {
+    private void loadAllSheetNames() {
         if (selectedFile == null) return;
         try {
-            List<String> sheetNames = ExcelReader.getSheetNames(selectedFile.getAbsolutePath());
-            sheetCombo.removeAllItems();
-            for (String name : sheetNames) {
-                sheetCombo.addItem(name);
-            }
+            this.allSheetNames = ExcelReader.getSheetNames(selectedFile.getAbsolutePath());
         } catch (IOException e) {
+            this.allSheetNames = new ArrayList<>();
             JOptionPane.showMessageDialog(parent, "Error reading sheets from file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void filterSheets() {
+        String searchTerm = searchField.getText().toLowerCase();
+        List<String> filteredSheets = allSheetNames.stream()
+                .filter(sheet -> sheet.toLowerCase().contains(searchTerm))
+                .collect(Collectors.toList());
+
+        DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) sheetCombo.getModel();
+        model.removeAllElements();
+        model.addAll(filteredSheets);
+
+        if (sheetCombo.getItemCount() > 0) {
+            sheetCombo.setSelectedIndex(0);
         }
     }
 

@@ -60,6 +60,9 @@ public class FilterPanel extends JPanel {
         // Data Preview Table
         dataPreviewModel = new DefaultTableModel();
         dataPreviewTable = new JTable(dataPreviewModel);
+        dataPreviewTable.setShowGrid(true);
+        dataPreviewTable.setGridColor(Color.LIGHT_GRAY);
+        dataPreviewTable.setAutoCreateRowSorter(true);
         JScrollPane dataPreviewScroll = new JScrollPane(dataPreviewTable);
         dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview (First 50 rows)"));
         centerSplit.setLeftComponent(dataPreviewScroll);
@@ -68,6 +71,9 @@ public class FilterPanel extends JPanel {
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
         filterValuesPreviewTable.setCellSelectionEnabled(true);
+        filterValuesPreviewTable.setShowGrid(true);
+        filterValuesPreviewTable.setGridColor(Color.LIGHT_GRAY);
+        filterValuesPreviewTable.setAutoCreateRowSorter(true);
         JScrollPane filterValuesPreviewScroll = new JScrollPane(filterValuesPreviewTable);
         filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data) - Double-click a cell to create a filter"));
         centerSplit.setRightComponent(filterValuesPreviewScroll);

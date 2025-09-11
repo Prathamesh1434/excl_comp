@@ -46,32 +46,26 @@ public class FilteringService {
             if (rule.getSourceType() == FilterRule.SourceType.BY_VALUE) {
                 String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
                 for (List<Object> row : dataRows) {
-                    if (targetColIndex < row.size() && row.get(targetColIndex) != null) {
-                        String cellValue = row.get(targetColIndex).toString();
-                        if (rule.isTrimWhitespace()) {
-                            cellValue = cellValue.trim();
-                        }
-                        if (cellValue.equalsIgnoreCase(sourceValue)) {
-                            filteredRows.add(row);
-                        }
+                    Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+                    if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
+                        filteredRows.add(row);
                     }
                 }
             } else if (rule.getSourceType() == FilterRule.SourceType.BY_COLUMN) {
                 List<String> filterValues = getFilterValuesFromColumn(filterFilePath, filterSheetName, filterHeaderRows, filterConcatMode, rule);
                 for (List<Object> row : dataRows) {
-                    if (targetColIndex < row.size() && row.get(targetColIndex) != null) {
-                        String cellValue = row.get(targetColIndex).toString().toLowerCase();
-                        if (rule.isTrimWhitespace()) {
-                            cellValue = cellValue.trim();
-                        }
-                        if (filterValues.contains(cellValue)) {
-                            filteredRows.add(row);
-                        }
+                    Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+                    String cellValue = (cellObject == null) ? "" : cellObject.toString().toLowerCase();
+                    if (rule.isTrimWhitespace()) {
+                        cellValue = cellValue.trim();
+                    }
+                    if (filterValues.contains(cellValue)) {
+                        filteredRows.add(row);
                     }
                 }
             }
 
-            String filterName = String.format("Filtered_by_%s_on_%s", rule.getSourceValue(), rule.getTargetColumn()).replaceAll("[^a-zA-Z0-9.-]", "_");
+            String filterName = String.format("Filtered_by_%s_on_%s", rule.getSourceValue().isEmpty() ? "empty" : rule.getSourceValue(), rule.getTargetColumn()).replaceAll("[^a-zA-Z0-9.-]", "_");
             results.put(filterName, filteredRows);
         }
 
@@ -98,31 +92,36 @@ public class FilteringService {
         if (rule.getSourceType() == FilterRule.SourceType.BY_VALUE) {
             String sourceValue = rule.isTrimWhitespace() ? rule.getSourceValue().trim() : rule.getSourceValue();
             for (List<Object> row : dataRows) {
-                if (targetColIndex < row.size() && row.get(targetColIndex) != null) {
-                    String cellValue = row.get(targetColIndex).toString();
-                     if (rule.isTrimWhitespace()) {
-                        cellValue = cellValue.trim();
-                    }
-                    if (cellValue.equalsIgnoreCase(sourceValue)) {
-                        count++;
-                    }
+                Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+                if (isMatch(cellObject, sourceValue, rule.isTrimWhitespace())) {
+                    count++;
                 }
             }
         } else if (rule.getSourceType() == FilterRule.SourceType.BY_COLUMN) {
             List<String> filterValues = getFilterValuesFromColumn(filterFilePath, filterSheetName, filterHeaderRows, filterConcatMode, rule);
             for (List<Object> row : dataRows) {
-                if (targetColIndex < row.size() && row.get(targetColIndex) != null) {
-                    String cellValue = row.get(targetColIndex).toString().toLowerCase();
-                    if (rule.isTrimWhitespace()) {
-                        cellValue = cellValue.trim();
-                    }
-                    if (filterValues.contains(cellValue)) {
-                        count++;
-                    }
+                Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
+                String cellValue = (cellObject == null) ? "" : cellObject.toString().toLowerCase();
+                if (rule.isTrimWhitespace()) {
+                    cellValue = cellValue.trim();
+                }
+                if (filterValues.contains(cellValue)) {
+                    count++;
                 }
             }
         }
         return count;
+    }
+
+    private boolean isMatch(Object cellObject, String sourceValue, boolean trim) {
+        String cellValue = (cellObject == null) ? "" : cellObject.toString();
+        if (trim) {
+            cellValue = cellValue.trim();
+        }
+        if (sourceValue.isEmpty()) {
+            return cellValue.isEmpty();
+        }
+        return cellValue.equalsIgnoreCase(sourceValue);
     }
 
     private List<String> getFilterValuesFromColumn(String filePath, String sheetName, List<Integer> headerRows, ConcatenationMode concatMode, FilterRule rule) throws IOException, InvalidFormatException {
@@ -142,9 +141,9 @@ public class FilteringService {
 
         return filterValuesData.stream()
                 .skip(filterDataStartRow)
-                .filter(row -> filterColIndex < row.size() && row.get(filterColIndex) != null)
                 .map(row -> {
-                    String val = row.get(filterColIndex).toString().toLowerCase();
+                    Object cellObject = (filterColIndex < row.size()) ? row.get(filterColIndex) : null;
+                    String val = (cellObject == null) ? "" : cellObject.toString().toLowerCase();
                     return rule.isTrimWhitespace() ? val.trim() : val;
                 })
                 .collect(Collectors.toList());
