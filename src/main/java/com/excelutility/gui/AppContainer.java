@@ -11,6 +11,7 @@ public class AppContainer extends JFrame {
     private ComparePanel comparePanel;
     private FilterPanel filterPanel;
     private JMenuBar compareMenuBar;
+    private JMenuBar filterMenuBar;
 
     public AppContainer() {
         setTitle("Excel Utility");
@@ -23,10 +24,11 @@ public class AppContainer extends JFrame {
 
         modeSelectionPanel = new ModeSelectionPanel(this);
         comparePanel = new ComparePanel(this);
-        filterPanel = new FilterPanel();
+        filterPanel = new FilterPanel(this); // Pass container reference
 
-        // The compare panel has its own complex menu bar
+        // Each panel creates its own menu bar
         compareMenuBar = comparePanel.createMenuBar();
+        filterMenuBar = filterPanel.createMenuBar();
 
         mainPanel.add(modeSelectionPanel, "modeSelection");
         mainPanel.add(comparePanel, "compare");
@@ -40,21 +42,12 @@ public class AppContainer extends JFrame {
         cardLayout.show(mainPanel, panelName);
         if ("compare".equals(panelName)) {
             setJMenuBar(compareMenuBar);
+        } else if ("filter".equals(panelName)) {
+            setJMenuBar(filterMenuBar);
         } else {
-            // No menu bar for filter or mode selection panels yet
-            setJMenuBar(createBaseMenuBar());
+            setJMenuBar(null); // No menu for the mode selection panel
         }
         revalidate();
         repaint();
-    }
-
-    private JMenuBar createBaseMenuBar() {
-        JMenuBar menuBar = new JMenuBar();
-        JMenu fileMenu = new JMenu("File");
-        JMenuItem backItem = new JMenuItem("Back to Mode Selection");
-        backItem.addActionListener(e -> navigateTo("modeSelection"));
-        fileMenu.add(backItem);
-        menuBar.add(fileMenu);
-        return menuBar;
     }
 }

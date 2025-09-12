@@ -1,6 +1,8 @@
 package com.excelutility.core.expression;
 
 import com.excelutility.core.FilteringService;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,9 +15,12 @@ public class GroupNode implements FilterExpression {
 
     private final FilteringService.LogicalOperator operator;
     private final List<FilterExpression> children = new ArrayList<>();
+    private String name;
 
-    public GroupNode(FilteringService.LogicalOperator operator) {
+    @JsonCreator
+    public GroupNode(@JsonProperty("operator") FilteringService.LogicalOperator operator, @JsonProperty("name") String name) {
         this.operator = operator;
+        this.name = name;
     }
 
     public void addChild(FilterExpression child) {
@@ -24,6 +29,10 @@ public class GroupNode implements FilterExpression {
 
     public FilteringService.LogicalOperator getOperator() {
         return operator;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public List<FilterExpression> getChildren() {

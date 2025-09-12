@@ -22,23 +22,28 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     private final JPanel contentPanel;
     private final JButton addRuleButton;
     private final JButton addGroupButton;
+    private final JTextField groupNameField;
     private final List<Component> childComponents = new ArrayList<>();
 
     /**
      * Constructs a new LogicalGroupPanel.
      *
+     * @param initialName    The initial name to display for the group.
      * @param deleteListener The listener to be called when this entire group is deleted. Can be null for the root panel.
      */
-    public LogicalGroupPanel(ActionListener deleteListener) {
+    public LogicalGroupPanel(String initialName, ActionListener deleteListener) {
         setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 1, 1, 1, Color.GRAY),
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)
         ));
         setLayout(new MigLayout("insets 0, fillx, wrap 1", "[grow]"));
 
-        JPanel topBar = new JPanel(new MigLayout("insets 0", "[]push[]"));
+        JPanel topBar = new JPanel(new MigLayout("insets 0", "[][grow]push[]"));
+        groupNameField = new JTextField(initialName);
+        topBar.add(groupNameField, "growx");
+
         operatorCombo = new JComboBox<>(FilteringService.LogicalOperator.values());
-        topBar.add(new JLabel("Logic for this group:"));
+        topBar.add(new JLabel("Logic:"));
         topBar.add(operatorCombo);
 
         addRuleButton = new JButton("Add Rule");
@@ -72,6 +77,21 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         return addGroupButton;
     }
 
+    public void setGroupName(String name) {
+        groupNameField.setText(name);
+    }
+
+    public void setOperator(FilteringService.LogicalOperator operator) {
+        operatorCombo.setSelectedItem(operator);
+    }
+
+    @Override
+    public void removeAll() {
+        childComponents.clear();
+        contentPanel.removeAll();
+        revalidateAndRepaint();
+    }
+
     public void addComponent(Component component) {
         childComponents.add(component);
         contentPanel.add(component, "growx");
@@ -96,7 +116,10 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
 
     @Override
     public FilterExpression getExpression() {
-        GroupNode groupNode = new GroupNode((FilteringService.LogicalOperator) operatorCombo.getSelectedItem());
+        String name = groupNameField.getText();
+        FilteringService.LogicalOperator op = (FilteringService.LogicalOperator) operatorCombo.getSelectedItem();
+        GroupNode groupNode = new GroupNode(op, name);
+
         for (Component child : childComponents) {
             if (child instanceof ExpressionNodeComponent) {
                 groupNode.addChild(((ExpressionNodeComponent) child).getExpression());

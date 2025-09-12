@@ -2,6 +2,8 @@ package com.excelutility.core.expression;
 
 import com.excelutility.core.FilterRule;
 import com.excelutility.core.FilteringService;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
@@ -12,7 +14,8 @@ public class RuleNode implements FilterExpression {
 
     private final FilterRule rule;
 
-    public RuleNode(FilterRule rule) {
+    @JsonCreator
+    public RuleNode(@JsonProperty("rule") FilterRule rule) {
         this.rule = rule;
     }
 

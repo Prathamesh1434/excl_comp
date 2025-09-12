@@ -1,5 +1,8 @@
 package com.excelutility.core;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Represents a single filtering rule defined by the user.
  * This is an immutable data class that holds all the information needed to apply one filter.
@@ -43,7 +46,12 @@ public class FilterRule {
      * @param targetColumn   The name of the column in the data file to apply the filter on.
      * @param trimWhitespace If true, whitespace will be trimmed from the target column's values before comparison.
      */
-    public FilterRule(SourceType sourceType, String sourceValue, String targetColumn, boolean trimWhitespace) {
+    @JsonCreator
+    public FilterRule(
+            @JsonProperty("sourceType") SourceType sourceType,
+            @JsonProperty("sourceValue") String sourceValue,
+            @JsonProperty("targetColumn") String targetColumn,
+            @JsonProperty("trimWhitespace") boolean trimWhitespace) {
         this.sourceType = sourceType;
         this.sourceValue = sourceValue;
         this.targetColumn = targetColumn;
@@ -72,5 +80,17 @@ public class FilterRule {
                 targetColumn,
                 sourceType == SourceType.BY_COLUMN ? "using column name" : "by value",
                 sourceValue);
+    }
+
+    /**
+     * Generates a short, descriptive name for the rule, suitable for display in the UI.
+     * @return A descriptive string representation of the rule.
+     */
+    public String getDescriptiveName() {
+        String baseName = String.format("%s = '%s'", targetColumn, sourceValue);
+        if (sourceType == SourceType.BY_COLUMN) {
+            return baseName + " (from Column)";
+        }
+        return baseName;
     }
 }

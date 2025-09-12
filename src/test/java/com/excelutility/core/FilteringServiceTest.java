@@ -168,7 +168,7 @@ public class FilteringServiceTest {
     @Test
     void testFilterWithExpressionAnd() throws Exception {
         // (City is "Chicago" AND Status is "Active") -> David
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND, "Root");
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Chicago", "City", true)));
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false)));
 
@@ -180,7 +180,7 @@ public class FilteringServiceTest {
     @Test
     void testFilterWithExpressionOr() throws Exception {
         // (Name is "Bob" OR Name is "Eve") -> Bob, Eve
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.OR);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.OR, "Root");
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Bob", "Name", false)));
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Eve", "Name", false)));
 
@@ -195,10 +195,10 @@ public class FilteringServiceTest {
     void testFilterWithNestedExpression() throws Exception {
         // Status is "Active" AND (City is "Los Angeles" OR City is "Chicago") -> David
         // This should not match Bob (Inactive) or Alice/Charlie (New York)
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND, "Root");
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Active", "Status", false)));
 
-        GroupNode subGroup = new GroupNode(FilteringService.LogicalOperator.OR);
+        GroupNode subGroup = new GroupNode(FilteringService.LogicalOperator.OR, "Sub-Group");
         subGroup.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Los Angeles", "City", true)));
         subGroup.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "Chicago", "City", true)));
         root.addChild(subGroup);
@@ -211,7 +211,7 @@ public class FilteringServiceTest {
     @Test
     void testFilterWithEmptyGroup() throws Exception {
         // An empty group should evaluate to true and not filter anything out.
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND, "Root");
         List<List<Object>> filteredRows = filteringService.filter(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
         assertEquals(7, filteredRows.size()); // Header + 6 data rows
     }
@@ -219,7 +219,7 @@ public class FilteringServiceTest {
     @Test
     void testTickSymbolNormalization() throws Exception {
         // The Normalizer should convert "P" in the file to "✓" for matching.
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND, "Root");
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "✓", "Code", false)));
 
         List<List<Object>> filteredRows = filteringService.filter(specialCharsFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
@@ -230,7 +230,7 @@ public class FilteringServiceTest {
     @Test
     void testNumericNormalization() throws Exception {
         // The Normalizer should convert 100.0 and 100 to "100" for matching.
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND, "Root");
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "100", "Value", false)));
 
         List<List<Object>> filteredRows = filteringService.filter(specialCharsFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, root);
@@ -244,7 +244,7 @@ public class FilteringServiceTest {
     void testMultiHeaderFiltering() throws Exception {
         // Use header rows 0 and 1. The canonical name for the second column should be "Group 1 | Name".
         List<Integer> headerRows = Arrays.asList(0, 1);
-        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND);
+        GroupNode root = new GroupNode(FilteringService.LogicalOperator.AND, "Root");
         root.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "First", "Group 1 | Name", false)));
 
         List<List<Object>> filteredRows = filteringService.filter(multiHeaderFilePath, "Data", headerRows, ConcatenationMode.BREADCRUMB, root);

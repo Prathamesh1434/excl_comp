@@ -1,8 +1,11 @@
 package com.excelutility.gui;
 
+import com.excelutility.core.FilterProfile;
 import com.excelutility.core.FilterRule;
 import com.excelutility.core.FilteringService;
+import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.io.ExcelReader;
+import com.excelutility.io.FilterProfileService;
 import com.excelutility.io.SimpleExcelWriter;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -50,8 +53,11 @@ public class FilterPanel extends JPanel {
     private enum ProcessDestination { VIEW, EXPORT, CALCULATE_ONLY }
 
     private Color selectedColor = Color.YELLOW;
+    private final AppContainer appContainer;
+    private final FilterProfileService profileService = new FilterProfileService();
 
-    public FilterPanel() {
+    public FilterPanel(AppContainer appContainer) {
+        this.appContainer = appContainer;
         setLayout(new BorderLayout());
 
         // --- Top Panel for File Selection ---
@@ -65,10 +71,24 @@ public class FilterPanel extends JPanel {
         topPanel.add(previewButton, "span, center");
         add(topPanel, BorderLayout.NORTH);
 
-        // --- Center Panel for Previews and Rules ---
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainSplit.setResizeWeight(0.7);
+        // --- Main Content Split Pane ---
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        mainSplit.setResizeWeight(0.5);
+        add(mainSplit, BorderLayout.CENTER);
 
+        // --- Left Panel (Previews and Builder) ---
+        JPanel leftPanel = new JPanel(new BorderLayout());
+        JSplitPane leftSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        leftSplit.setResizeWeight(0.5);
+        leftPanel.add(leftSplit, BorderLayout.CENTER);
+        mainSplit.setLeftComponent(leftPanel);
+
+        // --- Right Panel (Unified Data View Placeholder) ---
+        JPanel unifiedDataViewPlaceholder = new JPanel();
+        unifiedDataViewPlaceholder.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
+        mainSplit.setRightComponent(unifiedDataViewPlaceholder);
+
+        // --- Top part of Left Panel (Previews) ---
         JSplitPane centerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         centerSplit.setResizeWeight(0.5);
 
@@ -89,9 +109,9 @@ public class FilterPanel extends JPanel {
         filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data) - Double-click a cell to create a filter"));
         centerSplit.setRightComponent(filterValuesPreviewScroll);
 
-        mainSplit.setTopComponent(centerSplit);
+        leftSplit.setTopComponent(centerSplit);
 
-        // --- Bottom Panel for Rules and Actions ---
+        // --- Bottom part of Left Panel (Builder and Actions) ---
         JPanel bottomPanel = new JPanel(new MigLayout("fill", "[grow][nogrid]", "[grow]"));
         filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
         bottomPanel.add(filterExpressionBuilderPanel, "grow");
@@ -131,8 +151,7 @@ public class FilterPanel extends JPanel {
         actionPanel.add(downloadButton, "growx, gaptop 10");
         bottomPanel.add(actionPanel);
 
-        mainSplit.setBottomComponent(bottomPanel);
-        add(mainSplit, BorderLayout.CENTER);
+        leftSplit.setBottomComponent(bottomPanel);
 
         // Action Listeners
         previewButton.addActionListener(e -> loadPreviews());
@@ -229,7 +248,8 @@ public class FilterPanel extends JPanel {
                 groupPanel.removeComponent(sourceGroup);
             };
 
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(deleteListener);
+            String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener);
 
             // IMPORTANT: Recursively configure the new group's buttons before adding it
             configureGroupPanel(newGroup);
@@ -506,6 +526,118 @@ public class FilterPanel extends JPanel {
         loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable, true);
         // Filter values file should be read fully and accurately
         loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable, false);
+    }
+
+    public JMenuBar createMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+
+        JMenuItem backItem = new JMenuItem("Back to Mode Selection");
+        backItem.addActionListener(e -> appContainer.navigateTo("modeSelection"));
+        fileMenu.add(backItem);
+        fileMenu.addSeparator();
+
+        JMenuItem saveProfileItem = new JMenuItem("Save Profile As...");
+        saveProfileItem.addActionListener(e -> saveProfile());
+        fileMenu.add(saveProfileItem);
+
+        JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
+        loadProfileItem.addActionListener(e -> loadProfile());
+        fileMenu.add(loadProfileItem);
+
+        fileMenu.addSeparator();
+
+        JMenuItem exitItem = new JMenuItem("Exit");
+        exitItem.addActionListener(e -> System.exit(0));
+        fileMenu.add(exitItem);
+        menuBar.add(fileMenu);
+
+        JMenu editMenu = new JMenu("Edit");
+        JMenuItem profileManagerItem = new JMenuItem("Manage Profiles...");
+        profileManagerItem.addActionListener(e -> manageProfiles());
+        editMenu.add(profileManagerItem);
+        menuBar.add(editMenu);
+
+        return menuBar;
+    }
+
+    private void saveProfile() {
+        FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
+        FilterProfile profile = new FilterProfile(expression);
+
+        String profileName = JOptionPane.showInputDialog(this, "Enter a name for this profile:", "Save Filter Profile", JOptionPane.PLAIN_MESSAGE);
+        if (profileName != null && !profileName.trim().isEmpty()) {
+            try {
+                profileService.saveProfile(profile, profileName);
+                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException e) {
+                logger.error("Failed to save filter profile: {}", profileName, e);
+                JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void loadProfile() {
+        List<String> profiles = profileService.getAvailableProfiles();
+        if (profiles.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No saved filter profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String selectedProfile = (String) JOptionPane.showInputDialog(this, "Select a profile to load:",
+                "Load Filter Profile", JOptionPane.QUESTION_MESSAGE, null, profiles.toArray(), profiles.get(0));
+
+        if (selectedProfile != null) {
+            try {
+                FilterProfile loadedProfile = profileService.loadProfile(selectedProfile);
+                rebuildUIFromProfile(loadedProfile);
+                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfile + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException e) {
+                logger.error("Failed to load filter profile: {}", selectedProfile, e);
+                JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void rebuildUIFromProfile(FilterProfile profile) {
+        // Clear the entire current UI
+        filterExpressionBuilderPanel.getRootGroup().removeAll();
+        com.excelutility.core.AutoNamingService.reset();
+
+        // Recursively build the new UI from the loaded profile
+        populateGroupFromNode(filterExpressionBuilderPanel.getRootGroup(), (com.excelutility.core.expression.GroupNode) profile.getRootExpression());
+
+        filterExpressionBuilderPanel.revalidate();
+        filterExpressionBuilderPanel.repaint();
+    }
+
+    private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
+        uiGroup.setGroupName(dataNode.getName());
+        uiGroup.setOperator(dataNode.getOperator());
+
+        for (FilterExpression childNode : dataNode.getChildren()) {
+            if (childNode instanceof com.excelutility.core.expression.RuleNode) {
+                com.excelutility.core.expression.RuleNode ruleNode = (com.excelutility.core.expression.RuleNode) childNode;
+                filterExpressionBuilderPanel.addRuleToGroup(uiGroup, ruleNode.getRule());
+            } else if (childNode instanceof com.excelutility.core.expression.GroupNode) {
+                com.excelutility.core.expression.GroupNode childGroupNode = (com.excelutility.core.expression.GroupNode) childNode;
+
+                ActionListener deleteListener = event -> {
+                    LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                    uiGroup.removeComponent(sourceGroup);
+                };
+
+                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener);
+                configureGroupPanel(newUiGroup); // Make sure the new group's buttons are wired up
+                uiGroup.addComponent(newUiGroup);
+
+                // Recurse
+                populateGroupFromNode(newUiGroup, childGroupNode);
+            }
+        }
+    }
+
+    private void manageProfiles() {
+        JOptionPane.showMessageDialog(this, "Profile Manager is not yet implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**

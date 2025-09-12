@@ -28,13 +28,7 @@ public class FilterRulePanel extends JPanel implements ExpressionNodeComponent {
         setLayout(new MigLayout("insets 5, fillx", "[grow][][][]"));
         setBorder(BorderFactory.createEtchedBorder());
 
-        String ruleText = String.format("<html><b>%s</b> where <b>%s</b> is <b>'%s'</b> (Trim: %s)</html>",
-                rule.getTargetColumn(),
-                rule.getSourceType().getDisplayName(),
-                rule.getSourceValue(),
-                rule.isTrimWhitespace());
-
-        JLabel ruleLabel = new JLabel(ruleText);
+        JLabel ruleLabel = new JLabel(rule.getDescriptiveName());
         add(ruleLabel, "growx");
 
         JButton viewButton = new JButton("View");

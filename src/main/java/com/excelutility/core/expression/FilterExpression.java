@@ -1,6 +1,10 @@
 package com.excelutility.core.expression;
 
 import com.excelutility.core.FilteringService;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
 import java.util.List;
 
@@ -8,6 +12,11 @@ import java.util.List;
  * Represents a node in a filter expression tree. This can be either a single rule
  * or a group of other expressions.
  */
+@JsonTypeInfo(use = Id.NAME, include = As.PROPERTY, property = "type")
+@JsonSubTypes({
+    @JsonSubTypes.Type(value = GroupNode.class, name = "group"),
+    @JsonSubTypes.Type(value = RuleNode.class, name = "rule")
+})
 public interface FilterExpression {
 
     /**
