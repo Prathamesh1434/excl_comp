@@ -79,4 +79,35 @@ public class FilterProfileServiceTest {
         assertEquals("Status", loadedRule.getRule().getTargetColumn());
         assertEquals("Active", loadedRule.getRule().getSourceValue());
     }
+
+    @Test
+    void testProfileVersioning() throws IOException {
+        // 1. Create two profiles with the same name
+        String profileName = "Versioned Profile";
+        FilterProfile profile1 = new FilterProfile(profileName, new GroupNode(FilteringService.LogicalOperator.AND, "Root"), "Sheet1", List.of("A"));
+        FilterProfile profile2 = new FilterProfile(profileName, new GroupNode(FilteringService.LogicalOperator.OR, "Root"), "Sheet2", List.of("B"));
+
+        // 2. Save both
+        profileService.saveProfile(profile1);
+        profileService.saveProfile(profile2);
+
+        // 3. Verify that two files were created with versioning
+        assertTrue(Files.exists(profileDirPath.resolve("Versioned Profile.json")));
+        assertTrue(Files.exists(profileDirPath.resolve("Versioned Profile-v2.json")));
+
+        // 4. Verify that getAvailableProfiles returns both
+        List<String> available = profileService.getAvailableProfiles();
+        assertEquals(2, available.size());
+        assertTrue(available.contains("Versioned Profile"));
+        assertTrue(available.contains("Versioned Profile-v2"));
+
+        // 5. Load both and check their contents to ensure they are distinct
+        FilterProfile loaded1 = profileService.loadProfile("Versioned Profile");
+        FilterProfile loaded2 = profileService.loadProfile("Versioned Profile-v2");
+
+        assertEquals("Sheet1", loaded1.getSelectedSheet());
+        assertEquals("Sheet2", loaded2.getSelectedSheet());
+        assertEquals(FilteringService.LogicalOperator.AND, ((GroupNode) loaded1.getRootExpression()).getOperator());
+        assertEquals(FilteringService.LogicalOperator.OR, ((GroupNode) loaded2.getRootExpression()).getOperator());
+    }
 }

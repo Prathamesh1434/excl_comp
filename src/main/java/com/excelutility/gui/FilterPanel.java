@@ -630,6 +630,7 @@ public class FilterPanel extends JPanel {
     }
 
     private void loadProfile() {
+        // This version is for the menu item, which shows a dropdown
         List<String> profiles = profileService.getAvailableProfiles();
         if (profiles.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No saved filter profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
@@ -639,14 +640,19 @@ public class FilterPanel extends JPanel {
                 "Load Filter Profile", JOptionPane.QUESTION_MESSAGE, null, profiles.toArray(), profiles.get(0));
 
         if (selectedProfile != null) {
-            try {
-                FilterProfile loadedProfile = profileService.loadProfile(selectedProfile);
-                rebuildUIFromProfile(loadedProfile);
-                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfile + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Failed to load filter profile: {}", selectedProfile, e);
-                JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
+            loadProfile(selectedProfile); // Call the overloaded method
+        }
+    }
+
+    private void loadProfile(String profileName) {
+        // This version loads a profile by name, used by the manager dialog
+        try {
+            FilterProfile loadedProfile = profileService.loadProfile(profileName);
+            rebuildUIFromProfile(loadedProfile);
+            JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException e) {
+            logger.error("Failed to load filter profile: {}", profileName, e);
+            JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -695,7 +701,14 @@ public class FilterPanel extends JPanel {
     }
 
     private void manageProfiles() {
-        JOptionPane.showMessageDialog(this, "Profile Manager is not yet implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
+        FilterProfileManagerDialog dialog = new FilterProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
+        dialog.setVisible(true);
+
+        String profileToLoad = dialog.getSelectedProfileForLoad();
+        if (profileToLoad != null) {
+            // This re-uses the existing load logic
+            loadProfile(profileToLoad);
+        }
     }
 
     private void loadPreviews() {
