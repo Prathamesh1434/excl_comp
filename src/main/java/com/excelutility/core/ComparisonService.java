@@ -212,14 +212,11 @@ public class ComparisonService {
 
     private Map<String, List<Object>> buildKeyMap(List<List<Object>> rows, List<Object> headers, Map<String, String> columnMappings, List<String> keyColumns) {
         Map<String, List<Object>> map = new HashMap<>();
-        // Invert mapping to find target key columns
-        Map<String, String> targetToSourceMapping = columnMappings.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
 
         for (List<Object> row : rows) {
             List<String> keyParts = new ArrayList<>();
             for (String sourceKeyColumn : keyColumns) {
-                String targetKeyColumn = targetToSourceMapping.get(sourceKeyColumn);
+                String targetKeyColumn = columnMappings.get(sourceKeyColumn);
                 if (targetKeyColumn != null) {
                     int index = headers.indexOf(targetKeyColumn);
                     if (index != -1 && index < row.size()) {
