@@ -30,7 +30,7 @@ public class ModeSelectionPanel extends JPanel {
         );
 
         JPanel filterPanel = createModePanel(
-            "Filter Excel Data",
+            "SPEC QA Recon",
             "Filter a data sheet using values from another file. Build complex, nested AND/OR logic, view results for each rule, and export the final dataset.",
             e -> appContainer.navigateTo("filter")
         );

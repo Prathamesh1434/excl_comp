@@ -18,8 +18,9 @@ import java.util.List;
  */
 public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent {
 
-    private final JComboBox<FilteringService.LogicalOperator> operatorCombo;
     private final JPanel contentPanel;
+    private final JRadioButton andButton;
+    private final JRadioButton orButton;
     private final JButton addRuleButton;
     private final JButton addGroupButton;
     private final JTextField groupNameField;
@@ -42,9 +43,20 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         groupNameField = new JTextField(initialName);
         topBar.add(groupNameField, "growx");
 
-        operatorCombo = new JComboBox<>(FilteringService.LogicalOperator.values());
-        topBar.add(new JLabel("Logic:"));
-        topBar.add(operatorCombo);
+        // --- Radio Buttons for Logic ---
+        andButton = new JRadioButton("AND");
+        andButton.setSelected(true); // Default selection
+        orButton = new JRadioButton("OR");
+
+        ButtonGroup logicGroup = new ButtonGroup();
+        logicGroup.add(andButton);
+        logicGroup.add(orButton);
+
+        JPanel logicPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        logicPanel.add(new JLabel("Group Logic:"));
+        logicPanel.add(andButton);
+        logicPanel.add(orButton);
+        topBar.add(logicPanel);
 
         addRuleButton = new JButton("Add Rule");
         addGroupButton = new JButton("Add Group");
@@ -82,7 +94,11 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     }
 
     public void setOperator(FilteringService.LogicalOperator operator) {
-        operatorCombo.setSelectedItem(operator);
+        if (operator == FilteringService.LogicalOperator.AND) {
+            andButton.setSelected(true);
+        } else {
+            orButton.setSelected(true);
+        }
     }
 
     @Override
@@ -117,7 +133,7 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     @Override
     public FilterExpression getExpression() {
         String name = groupNameField.getText();
-        FilteringService.LogicalOperator op = (FilteringService.LogicalOperator) operatorCombo.getSelectedItem();
+        FilteringService.LogicalOperator op = andButton.isSelected() ? FilteringService.LogicalOperator.AND : FilteringService.LogicalOperator.OR;
         GroupNode groupNode = new GroupNode(op, name);
 
         for (Component child : childComponents) {

@@ -1,6 +1,7 @@
 package com.excelutility.core;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
@@ -86,6 +87,7 @@ public class FilterRule {
      * Generates a short, descriptive name for the rule, suitable for display in the UI.
      * @return A descriptive string representation of the rule.
      */
+    @JsonIgnore
     public String getDescriptiveName() {
         String baseName = String.format("%s = '%s'", targetColumn, sourceValue);
         if (sourceType == SourceType.BY_COLUMN) {

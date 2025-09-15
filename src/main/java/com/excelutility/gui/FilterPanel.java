@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.JOptionPane;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -33,7 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 /**
- * The main panel for the "Filter Excel Data" mode.
+ * The main panel for the "SPEC QA Recon" mode.
  * This class orchestrates the entire filtering workflow, from file selection to exporting results.
  */
 public class FilterPanel extends JPanel {
@@ -42,23 +43,34 @@ public class FilterPanel extends JPanel {
 
     private final FilterFilePanel dataFilePanel;
     private final FilterFilePanel filterValuesFilePanel;
-    private final JTable dataPreviewTable;
+    private JTable dataPreviewTable; // Kept for compatibility with loadTableData, but not added to UI
     private final JTable filterValuesPreviewTable;
     private final DefaultTableModel dataPreviewModel;
     private final DefaultTableModel filterValuesPreviewModel;
     private final FilterExpressionBuilderPanel filterExpressionBuilderPanel;
+    private final JTable finalResultsTable;
+    private final DefaultTableModel finalResultsModel;
+    private final JTable previewResultsTable;
+    private final DefaultTableModel previewResultsModel;
+    private final JTable allResultsTable;
+    private final DefaultTableModel allResultsModel;
+    private final JTabbedPane resultsTabbedPane;
     private final FilteringService filteringService = new FilteringService();
     private final JLabel totalMatchesLabel;
 
-    private enum ProcessDestination { VIEW, EXPORT, CALCULATE_ONLY }
+    private enum ProcessDestination { VIEW, EXPORT, CALCULATE_ONLY, PREVIEW }
 
     private Color selectedColor = Color.YELLOW;
+    private java.util.List<java.util.List<Object>> lastPreviewResults;
+    private java.util.List<java.util.List<Object>> lastFinalResults;
     private final AppContainer appContainer;
     private final FilterProfileService profileService = new FilterProfileService();
 
     public FilterPanel(AppContainer appContainer) {
         this.appContainer = appContainer;
-        setLayout(new BorderLayout());
+        // Main layout with a top panel for file selection and a bottom panel for the two-column layout
+        setLayout(new BorderLayout(10, 10));
+        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // --- Top Panel for File Selection ---
         JPanel topPanel = new JPanel(new MigLayout("fillx", "[grow][grow]"));
@@ -71,95 +83,97 @@ public class FilterPanel extends JPanel {
         topPanel.add(previewButton, "span, center");
         add(topPanel, BorderLayout.NORTH);
 
-        // --- Main Content Split Pane ---
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setResizeWeight(0.5);
-        add(mainSplit, BorderLayout.CENTER);
+        // --- Main Content Panel with Two Columns ---
+        JPanel mainContentPanel = new JPanel(new MigLayout("fill, ins 0", "[35%][65%]", "[grow]"));
+        add(mainContentPanel, BorderLayout.CENTER);
 
-        // --- Left Panel (Previews and Builder) ---
-        JPanel leftPanel = new JPanel(new BorderLayout());
-        JSplitPane leftSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplit.setResizeWeight(0.5);
-        leftPanel.add(leftSplit, BorderLayout.CENTER);
-        mainSplit.setLeftComponent(leftPanel);
+        // --- Left Column: Controls ---
+        JPanel leftColumnPanel = new JPanel(new MigLayout("wrap 1, fillx", "[grow]"));
+        mainContentPanel.add(leftColumnPanel, "growy");
 
-        // --- Right Panel (Unified Data View Placeholder) ---
-        JPanel unifiedDataViewPlaceholder = new JPanel();
-        unifiedDataViewPlaceholder.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
-        mainSplit.setRightComponent(unifiedDataViewPlaceholder);
+        // --- Right Column: Unified Data View ---
+        JPanel rightColumnPanel = new JPanel(new MigLayout("fill, ins 0", "[grow]", "[grow]"));
+        mainContentPanel.add(rightColumnPanel, "grow");
 
-        // --- Top part of Left Panel (Previews) ---
-        JSplitPane centerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        centerSplit.setResizeWeight(0.5);
 
-        // Data Preview Table
-        dataPreviewModel = new DefaultTableModel();
-        dataPreviewTable = new JTable(dataPreviewModel);
-        configureTable(dataPreviewTable);
-        JScrollPane dataPreviewScroll = new JScrollPane(dataPreviewTable);
-        dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview (First 50 rows)"));
-        centerSplit.setLeftComponent(dataPreviewScroll);
+        // --- Populate Left Column ---
 
-        // Filter Values Preview Table
+        // 1. Filter Logic Builder Card
+        filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
+        JScrollPane builderScroll = new JScrollPane(filterExpressionBuilderPanel);
+        builderScroll.setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
+        builderScroll.getVerticalScrollBar().setUnitIncrement(16);
+        leftColumnPanel.add(builderScroll, "grow, h 60%");
+
+        // 2. Filter Actions Card
+        JPanel filterActionsCard = new JPanel(new MigLayout("wrap 1, fillx", "[grow]"));
+        filterActionsCard.setBorder(BorderFactory.createTitledBorder("Filter Actions"));
+        totalMatchesLabel = new JLabel("Total Matches: N/A");
+        JButton previewSearchButton = new JButton("Preview Search");
+        JButton calculateButton = new JButton("Calculate Total");
+        JButton viewButton = new JButton("View Overall Result");
+        JButton downloadButton = new JButton("Download Filtered Results");
+        JButton colorButton = new JButton("Set Highlight Color");
+
+        filterActionsCard.add(previewSearchButton, "growx");
+        filterActionsCard.add(calculateButton, "split 2, gaptop 5");
+        filterActionsCard.add(totalMatchesLabel, "gapleft 10, wrap");
+        filterActionsCard.add(viewButton, "growx, gaptop 5");
+        filterActionsCard.add(downloadButton, "growx, gaptop 5");
+        filterActionsCard.add(colorButton, "growx, gaptop 10");
+        leftColumnPanel.add(filterActionsCard, "growx");
+
+
+        // --- Populate Right Column (Unified View) ---
+        rightColumnPanel.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
+        JSplitPane rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        rightSplitPane.setResizeWeight(0.6);
+        rightColumnPanel.add(rightSplitPane, "grow");
+
+        // Top: Tabbed pane for results
+        resultsTabbedPane = new JTabbedPane();
+
+        // Final Results Table
+        finalResultsModel = new DefaultTableModel();
+        finalResultsTable = new JTable(finalResultsModel);
+        configureTable(finalResultsTable);
+        resultsTabbedPane.addTab("Final Result", new JScrollPane(finalResultsTable));
+
+        // Preview Results Table
+        previewResultsModel = new DefaultTableModel();
+        previewResultsTable = new JTable(previewResultsModel);
+        configureTable(previewResultsTable);
+        resultsTabbedPane.addTab("Preview", new JScrollPane(previewResultsTable));
+
+        // All Results Table
+        allResultsModel = new DefaultTableModel();
+        allResultsTable = new JTable(allResultsModel);
+        configureTable(allResultsTable);
+        resultsTabbedPane.addTab("All", new JScrollPane(allResultsTable));
+
+        rightSplitPane.setTopComponent(resultsTabbedPane);
+
+        // Bottom: Filter Values Preview Table (for creating filters)
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
         configureTable(filterValuesPreviewTable);
         filterValuesPreviewTable.setCellSelectionEnabled(true);
         JScrollPane filterValuesPreviewScroll = new JScrollPane(filterValuesPreviewTable);
-        filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data) - Double-click a cell to create a filter"));
-        centerSplit.setRightComponent(filterValuesPreviewScroll);
+        filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Double-click to create filter)"));
+        rightSplitPane.setBottomComponent(filterValuesPreviewScroll);
 
-        leftSplit.setTopComponent(centerSplit);
+        // dataPreviewTable is no longer needed, but the model is still used by loadPreviews
+        dataPreviewModel = new DefaultTableModel();
+        dataPreviewTable = null; // Set to null to make it obvious it's not used
 
-        // --- Bottom part of Left Panel (Builder and Actions) ---
-        JPanel bottomPanel = new JPanel(new MigLayout("fill", "[grow][nogrid]", "[grow]"));
-        filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
-        bottomPanel.add(filterExpressionBuilderPanel, "grow");
 
-        JPanel actionPanel = new JPanel(new MigLayout("wrap 1", "[grow]"));
-        JButton colorButton = new JButton("Set Highlight Color");
-        JButton downloadButton = new JButton("Download Filtered Results");
-
-        JTextField searchField = new JTextField();
-        actionPanel.add(new JLabel("Preview Search:"));
-        actionPanel.add(searchField, "growx, wrap, gaptop 5");
-
-        searchField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                searchTables(searchField.getText());
-            }
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                searchTables(searchField.getText());
-            }
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                searchTables(searchField.getText());
-            }
-        });
-
-        actionPanel.add(colorButton, "growx, gaptop 10");
-
-        JButton calculateButton = new JButton("Calculate Total");
-        JButton viewButton = new JButton("View Overall Result");
-        totalMatchesLabel = new JLabel("Total Matches: N/A");
-        actionPanel.add(calculateButton, "split 3, gaptop 20");
-        actionPanel.add(viewButton);
-        actionPanel.add(totalMatchesLabel, "gapleft 10");
-
-        actionPanel.add(downloadButton, "growx, gaptop 10");
-        bottomPanel.add(actionPanel);
-
-        leftSplit.setBottomComponent(bottomPanel);
-
-        // Action Listeners
+        // --- Action Listeners ---
         previewButton.addActionListener(e -> loadPreviews());
-        colorButton.addActionListener(e -> chooseColor());
+        previewSearchButton.addActionListener(e -> startFilterProcess(ProcessDestination.PREVIEW));
         downloadButton.addActionListener(e -> startFilterProcess(ProcessDestination.EXPORT));
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
-
+        colorButton.addActionListener(e -> chooseColor());
 
         // The listener for creating filters is now attached to the buttons in the builder UI
         configureGroupPanel(filterExpressionBuilderPanel.getRootGroup());
@@ -173,22 +187,6 @@ public class FilterPanel extends JPanel {
                 }
             }
         });
-    }
-
-    /**
-     * Filters the preview tables based on the entered search text.
-     * @param text The text to search for.
-     */
-    private void searchTables(String text) {
-        if (text == null || text.trim().isEmpty()) {
-            ((TableRowSorter) dataPreviewTable.getRowSorter()).setRowFilter(null);
-            ((TableRowSorter) filterValuesPreviewTable.getRowSorter()).setRowFilter(null);
-        } else {
-            // Case-insensitive search
-            RowFilter<Object, Object> rf = RowFilter.regexFilter("(?i)" + Pattern.quote(text));
-            ((TableRowSorter) dataPreviewTable.getRowSorter()).setRowFilter(rf);
-            ((TableRowSorter) filterValuesPreviewTable.getRowSorter()).setRowFilter(rf);
-        }
     }
 
     /**
@@ -314,7 +312,15 @@ public class FilterPanel extends JPanel {
                     List<List<Object>> resultData = projectColumns(filteredData, selectedColumns);
 
                     if (destination == ProcessDestination.VIEW) {
-                        new ResultsViewerDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Overall Filter Results", resultData).setVisible(true);
+                        lastFinalResults = resultData;
+                        populateTable(finalResultsModel, finalResultsTable, resultData);
+                        resultsTabbedPane.setSelectedIndex(0); // Switch to "Final Result" tab
+                        updateAllResultsTab();
+                    } else if (destination == ProcessDestination.PREVIEW) {
+                        lastPreviewResults = resultData;
+                        populateTable(previewResultsModel, previewResultsTable, resultData);
+                        resultsTabbedPane.setSelectedIndex(1); // Switch to "Preview" tab
+                        updateAllResultsTab();
                     } else if (destination == ProcessDestination.EXPORT) {
                         promptAndSaveResults(resultData);
                     }
@@ -418,7 +424,8 @@ public class FilterPanel extends JPanel {
                     if (isExport) {
                         promptAndSaveResults(resultData);
                     } else {
-                        new ResultsViewerDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Results for Rule: " + rule, resultData).setVisible(true);
+                        populateTable(previewResultsModel, previewResultsTable, resultData);
+                        resultsTabbedPane.setSelectedIndex(1); // Switch to "Preview" tab
                     }
                 } catch (Exception e) {
                     logger.error("Per-rule filtering process failed.", e);
@@ -518,14 +525,44 @@ public class FilterPanel extends JPanel {
         }
     }
 
-    /**
-     * Kicks off the SwingWorkers to load the preview data for both selected files.
-     */
-    private void loadPreviews() {
-        // Data file can be large, so preview is fine
-        loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable, true);
-        // Filter values file should be read fully and accurately
-        loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable, false);
+    private void updateAllResultsTab() {
+        // Combine headers
+        List<String> headers = new ArrayList<>();
+        if (lastFinalResults != null && !lastFinalResults.isEmpty()) {
+            headers.addAll(lastFinalResults.get(0).stream().map(Object::toString).collect(Collectors.toList()));
+        } else if (lastPreviewResults != null && !lastPreviewResults.isEmpty()) {
+            headers.addAll(lastPreviewResults.get(0).stream().map(Object::toString).collect(Collectors.toList()));
+        } else {
+            allResultsModel.setDataVector(new Vector<>(), new Vector<>());
+            return;
+        }
+
+        Vector<String> headerVector = new Vector<>(headers);
+        Vector<Vector<Object>> dataVector = new Vector<>();
+
+        // Add final results first
+        if (lastFinalResults != null && lastFinalResults.size() > 1) {
+            for (int i = 1; i < lastFinalResults.size(); i++) {
+                Vector<Object> row = new Vector<>(lastFinalResults.get(i));
+                row.add(0, "Final"); // Add a hidden identifier
+                dataVector.add(row);
+            }
+        }
+        // Add preview results
+        if (lastPreviewResults != null && lastPreviewResults.size() > 1) {
+            for (int i = 1; i < lastPreviewResults.size(); i++) {
+                 Vector<Object> row = new Vector<>(lastPreviewResults.get(i));
+                row.add(0, "Preview"); // Add a hidden identifier
+                dataVector.add(row);
+            }
+        }
+
+        headerVector.add(0, "ResultType");
+        allResultsModel.setDataVector(dataVector, headerVector);
+
+        // Hide the identifier column
+        allResultsTable.getColumnModel().removeColumn(allResultsTable.getColumnModel().getColumn(0));
+        allResultsTable.setDefaultRenderer(Object.class, new HighlightingTableCellRenderer());
     }
 
     public JMenuBar createMenuBar() {
@@ -562,18 +599,33 @@ public class FilterPanel extends JPanel {
     }
 
     private void saveProfile() {
-        FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
-        FilterProfile profile = new FilterProfile(expression);
-
         String profileName = JOptionPane.showInputDialog(this, "Enter a name for this profile:", "Save Filter Profile", JOptionPane.PLAIN_MESSAGE);
-        if (profileName != null && !profileName.trim().isEmpty()) {
-            try {
-                profileService.saveProfile(profile, profileName);
-                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Failed to save filter profile: {}", profileName, e);
-                JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        if (profileName == null || profileName.trim().isEmpty()) {
+            return; // User cancelled or entered empty name
+        }
+
+        FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
+        String dataSheet = dataFilePanel.getSelectedSheet();
+        List<String> columns = dataFilePanel.getColumnNames();
+
+        if (dataSheet == null || columns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Cannot save profile without a loaded data file and selected sheet.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        FilterProfile profile = new FilterProfile(profileName.trim(), expression, dataSheet, columns);
+
+        try {
+            profileService.saveProfile(profile);
+            JOptionPane.showMessageDialog(this, "Profile '" + profile.getProfileName() + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException e) {
+            // Don't show a generic error if the user just cancelled the overwrite dialog
+            if ("Save cancelled by user.".equals(e.getMessage())) {
+                logger.info("Profile save cancelled by user for profile: {}", profile.getProfileName());
+                return;
             }
+            logger.error("Failed to save filter profile: {}", profile.getProfileName(), e);
+            JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -602,6 +654,12 @@ public class FilterPanel extends JPanel {
         // Clear the entire current UI
         filterExpressionBuilderPanel.getRootGroup().removeAll();
         com.excelutility.core.AutoNamingService.reset();
+
+        // Set the sheet and columns from the profile
+        // This assumes the same data file is loaded, which is a reasonable expectation for a profile
+        dataFilePanel.getSheetCombo().setSelectedItem(profile.getSelectedSheet());
+        // We don't need to set columns here as they are part of the file itself.
+        // We could potentially use profile.getDisplayColumns() to configure the view in the future.
 
         // Recursively build the new UI from the loaded profile
         populateGroupFromNode(filterExpressionBuilderPanel.getRootGroup(), (com.excelutility.core.expression.GroupNode) profile.getRootExpression());
@@ -640,15 +698,11 @@ public class FilterPanel extends JPanel {
         JOptionPane.showMessageDialog(this, "Profile Manager is not yet implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    /**
-     * Loads data from an Excel file into a JTable model in a background thread.
-     * @param panel The panel containing the file info.
-     * @param model The table model to populate.
-     * @param rowLimit The maximum number of rows to load (-1 for all).
-     * @param errorTitle The title for any error dialogs.
-     * @param table The table to adjust column widths for.
-     * @param useStreaming Whether to use the memory-efficient streaming reader.
-     */
+    private void loadPreviews() {
+        // The data file preview is no longer shown, but we can still load the filter values
+        loadTableData(filterValuesFilePanel, filterValuesPreviewModel, -1, "Error loading filter values preview", filterValuesPreviewTable, false);
+    }
+
     private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle, JTable table, boolean useStreaming) {
         String filePath = panel.getFilePath();
         String sheetName = panel.getSelectedSheet();
@@ -692,12 +746,59 @@ public class FilterPanel extends JPanel {
                     }
 
                     model.setDataVector(dataVector, headerVector);
-                    adjustColumnWidths(table);
+                    if (table != null) {
+                        adjustColumnWidths(table);
+                    }
 
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Could not load data: " + e.getMessage(), errorTitle, JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
+    }
+
+    private void populateTable(DefaultTableModel model, JTable table, List<List<Object>> data) {
+        if (data == null || data.isEmpty()) {
+            model.setDataVector(new Vector<>(), new Vector<>());
+            return;
+        }
+
+        Vector<String> headerVector = new Vector<>(data.get(0).stream().map(Object::toString).collect(Collectors.toList()));
+        model.setColumnIdentifiers(headerVector);
+
+        Vector<Vector<Object>> dataVector = new Vector<>();
+        if (data.size() > 1) {
+            List<List<Object>> dataRows = data.subList(1, data.size());
+            for (List<Object> row : dataRows) {
+                dataVector.add(new Vector<>(row));
+            }
+        }
+        model.setDataVector(dataVector, headerVector);
+        adjustColumnWidths(table);
+    }
+
+    /**
+     * A custom cell renderer that highlights rows based on their source (Preview or Final).
+     */
+    private static class HighlightingTableCellRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        private static final Color PREVIEW_COLOR = new Color(220, 240, 255); // Light blue
+        private static final Color FINAL_COLOR = new Color(220, 255, 220);   // Light green
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (!isSelected) {
+                // The "ResultType" is in the first column of the model, which is hidden from the view
+                String resultType = (String) table.getModel().getValueAt(table.convertRowIndexToModel(row), 0);
+                if ("Preview".equals(resultType)) {
+                    c.setBackground(PREVIEW_COLOR);
+                } else if ("Final".equals(resultType)) {
+                    c.setBackground(FINAL_COLOR);
+                } else {
+                    c.setBackground(table.getBackground());
+                }
+            }
+            return c;
+        }
     }
 }

@@ -7,7 +7,7 @@ Welcome to the Excel Utility! This guide will walk you through the features of t
 When you first start the application, you will be asked to choose a mode. You can switch between modes at any time by using the "File" > "Back to Mode Selection" menu item.
 
 -   **Compare Excel Files**: Use this mode to perform a detailed, cell-by-cell comparison of two Excel files.
--   **Filter Excel Data**: Use this mode to filter a main data file based on values from a second file using a powerful logic builder.
+-   **SPEC QA Recon**: Use this mode to filter a main data file based on values from a second file using a powerful logic builder.
 
 ---
 
@@ -29,7 +29,7 @@ This mode allows you to perform a detailed comparison of two Excel files.
 
 ---
 
-## 3. Filter Excel Data Mode
+## 3. SPEC QA Recon Mode
 
 This mode allows you to filter one Excel file (the "Data File") using values from another file (the "Filter Values File"). It features a powerful logic builder that allows you to create complex, nested `AND`/`OR` conditions.
 
