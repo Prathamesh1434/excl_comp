@@ -2,8 +2,7 @@ package com.excelutility.io;
 
 import com.excelutility.core.FilterProfile;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,16 +14,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * Service for saving and loading filter profiles to/from JSON files.
- */
 public class FilterProfileService {
 
     private final Path profileDir;
     private final ObjectMapper mapper;
 
     public FilterProfileService() {
-        this("profiles"); // As per spec
+        this("profiles/spec_qa_recon");
     }
 
     public FilterProfileService(String profileDirectory) {
@@ -34,25 +30,18 @@ public class FilterProfileService {
         } catch (IOException e) {
             throw new RuntimeException("Could not create profile directory: " + profileDir, e);
         }
-        // Use a standard JSON mapper
         this.mapper = new ObjectMapper();
-        mapper.enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT);
+        this.mapper.enable(SerializationFeature.INDENT_OUTPUT); // For pretty printing JSON
     }
 
     public void saveProfile(FilterProfile profile) throws IOException {
-        String baseName = profile.getProfileName();
-        Path profilePath = profileDir.resolve(baseName + ".json");
-        int version = 2;
-        while (Files.exists(profilePath)) {
-            profilePath = profileDir.resolve(baseName + "-v" + version + ".json");
-            version++;
-        }
-        mapper.writeValue(profilePath.toFile(), profile);
+        String fileName = profile.getProfileName() + ".json";
+        File profileFile = profileDir.resolve(fileName).toFile();
+        mapper.writeValue(profileFile, profile);
     }
 
     public FilterProfile loadProfile(String profileName) throws IOException {
-        // The profile name from the list might not have the extension
-        String fileName = profileName.endsWith(".json") ? profileName : profileName + ".json";
+        String fileName = profileName + ".json";
         File profileFile = profileDir.resolve(fileName).toFile();
         return mapper.readValue(profileFile, FilterProfile.class);
     }
@@ -63,8 +52,8 @@ public class FilterProfileService {
                     .filter(file -> !Files.isDirectory(file))
                     .map(path -> path.getFileName().toString())
                     .filter(name -> name.toLowerCase().endsWith(".json"))
-                    .map(name -> name.substring(0, name.length() - 5)) // Return full name without extension
-                    .sorted() // Sort alphabetically
+                    .map(name -> name.substring(0, name.length() - 5))
+                    .sorted()
                     .collect(Collectors.toList());
         } catch (IOException e) {
             return Collections.emptyList();
@@ -72,8 +61,14 @@ public class FilterProfileService {
     }
 
     public void deleteProfile(String profileName) throws IOException {
-        // The profileName is the full name without extension (e.g., "MyProfile-v2")
         String fileName = profileName + ".json";
         Files.deleteIfExists(profileDir.resolve(fileName));
+    }
+
+    public void renameProfile(String oldName, String newName) throws IOException {
+        String oldFileName = oldName + ".json";
+        String newFileName = newName + ".json";
+        Path source = profileDir.resolve(oldFileName);
+        Files.move(source, source.resolveSibling(newFileName));
     }
 }

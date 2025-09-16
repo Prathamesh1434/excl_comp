@@ -6,55 +6,50 @@ import net.miginfocom.swing.MigLayout;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * A simple panel that displays AND/OR radio buttons to connect two filter components.
- */
 public class ConnectorPanel extends JPanel {
-
-    private final JRadioButton andButton;
-    private final JRadioButton orButton;
+    private final JComboBox<FilteringService.LogicalOperator> operatorComboBox;
 
     public ConnectorPanel() {
-        setLayout(new MigLayout("insets 0, align center"));
-        setBorder(BorderFactory.createEmptyBorder(5, 20, 5, 20));
+        setLayout(new MigLayout("insets 2 0 2 0, align center"));
+        operatorComboBox = new JComboBox<>(new FilteringService.LogicalOperator[]{
+                FilteringService.LogicalOperator.AND,
+                FilteringService.LogicalOperator.OR
+        });
+        operatorComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof FilteringService.LogicalOperator) {
+                    setText(((FilteringService.LogicalOperator) value).name());
+                }
+                setHorizontalAlignment(CENTER);
+                return this;
+            }
+        });
 
-        andButton = new JRadioButton("AND");
-        andButton.setSelected(true); // Default to AND
-        orButton = new JRadioButton("OR");
+        operatorComboBox.setUI(new javax.swing.plaf.basic.BasicComboBoxUI() {
+            @Override
+            protected JButton createArrowButton() {
+                return new JButton() {
+                    @Override
+                    public int getWidth() {
+                        return 0;
+                    }
+                };
+            }
+        });
+        operatorComboBox.setPreferredSize(new Dimension(60, 25));
 
-        ButtonGroup group = new ButtonGroup();
-        group.add(andButton);
-        group.add(orButton);
-
-        JSeparator separator = new JSeparator();
-        add(separator, "growx, wrap, span");
-
-        add(andButton, "split 2");
-        add(orButton);
-
-        JSeparator separator2 = new JSeparator();
-        add(separator2, "growx, wrap, span, gaptop 5");
+        add(new JSeparator(SwingConstants.HORIZONTAL), "growx, wrap, h 2, gapbottom 2, gaptop 2");
+        add(operatorComboBox, "w 80!, h 25!");
+        add(new JSeparator(SwingConstants.HORIZONTAL), "growx, wrap, h 2, gaptop 2, gapbottom 2");
     }
 
-    /**
-     * Gets the logical operator selected in this connector panel.
-     *
-     * @return The selected {@link FilteringService.LogicalOperator}.
-     */
     public FilteringService.LogicalOperator getOperator() {
-        return andButton.isSelected() ? FilteringService.LogicalOperator.AND : FilteringService.LogicalOperator.OR;
+        return (FilteringService.LogicalOperator) operatorComboBox.getSelectedItem();
     }
 
-    /**
-     * Sets the selected logical operator for this panel.
-     *
-     * @param operator The {@link FilteringService.LogicalOperator} to select.
-     */
     public void setOperator(FilteringService.LogicalOperator operator) {
-        if (operator == FilteringService.LogicalOperator.AND) {
-            andButton.setSelected(true);
-        } else {
-            orButton.setSelected(true);
-        }
+        operatorComboBox.setSelectedItem(operator);
     }
 }

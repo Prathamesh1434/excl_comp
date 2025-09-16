@@ -316,8 +316,7 @@ public class ComparePanel extends JPanel {
     }
 
     private void openProfileManager() {
-        ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
-        dialog.setVisible(true);
+        JOptionPane.showMessageDialog(this, "Profile Manager for Comparison Mode is not yet implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void saveProfile() {

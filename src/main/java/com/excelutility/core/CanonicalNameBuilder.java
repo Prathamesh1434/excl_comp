@@ -26,21 +26,34 @@ public class CanonicalNameBuilder {
         List<String> canonicalHeaders = new ArrayList<>();
         for (int i = 0; i < maxCols; i++) {
             List<String> headerParts = new ArrayList<>();
-            String lastPart = "";
             for (int rowIndex : headerRowIndices) {
                 String cellValue = getCellValue(sheet, rowIndex, i);
-                if (cellValue != null && !cellValue.trim().isEmpty()) {
-                    lastPart = cellValue.trim();
-                }
-                headerParts.add(lastPart);
+                headerParts.add(cellValue != null ? cellValue.trim() : "");
             }
 
-            if (headerParts.isEmpty() || String.join("", headerParts).trim().isEmpty()) {
-                canonicalHeaders.add("Column " + (i + 1));
-            } else if (mode == ConcatenationMode.LEAF_ONLY) {
-                canonicalHeaders.add(headerParts.get(headerParts.size() - 1));
+            if (mode == ConcatenationMode.LEAF_ONLY) {
+                String finalHeader = "";
+                for (String part : headerParts) {
+                    if (!part.isEmpty()) {
+                        finalHeader = part;
+                    }
+                }
+                if (finalHeader.isEmpty()) {
+                    canonicalHeaders.add("Column " + (i + 1));
+                } else {
+                    canonicalHeaders.add(finalHeader);
+                }
             } else { // BREADCRUMB
-                canonicalHeaders.add(String.join(separator, headerParts));
+                if (headerParts.get(0).isEmpty()) {
+                    canonicalHeaders.add("Column " + (i + 1));
+                } else {
+                    for (int j = 1; j < headerParts.size(); j++) {
+                        if (headerParts.get(j).isEmpty()) {
+                            headerParts.set(j, headerParts.get(j - 1));
+                        }
+                    }
+                    canonicalHeaders.add(String.join(separator, headerParts));
+                }
             }
         }
         return canonicalHeaders;

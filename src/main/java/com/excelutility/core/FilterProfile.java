@@ -3,62 +3,47 @@ package com.excelutility.core;
 import com.excelutility.core.expression.FilterExpression;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonRawValue;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
-import java.time.Instant;
-import java.util.List;
-
-/**
- * A data class representing a saved state of the filter configuration,
- * including the entire expression tree and other metadata.
- */
 public class FilterProfile {
 
+    private static final int CURRENT_VERSION = 1;
+
+    private final int version;
     private final String profileName;
-    private final String createdBy = "default-user"; // Hardcoded as per plan
-    private final String createdAt;
-    private final FilterExpression filterConfig;
-    private final String selectedSheet;
-    private final List<String> displayColumns;
+    private final FilterExpression rootExpression;
+    private final String dataFilePath;
+    private final String filterValuesFilePath;
+    private final String dataFileSheet;
+    private final String filterValuesFileSheet;
 
     @JsonCreator
     public FilterProfile(
+            @JsonProperty("version") int version,
             @JsonProperty("profileName") String profileName,
-            @JsonProperty("filterConfig") FilterExpression filterConfig,
-            @JsonProperty("selectedSheet") String selectedSheet,
-            @JsonProperty("displayColumns") List<String> displayColumns
-    ) {
+            @JsonProperty("rootExpression") FilterExpression rootExpression,
+            @JsonProperty("dataFilePath") String dataFilePath,
+            @JsonProperty("filterValuesFilePath") String filterValuesFilePath,
+            @JsonProperty("dataFileSheet") String dataFileSheet,
+            @JsonProperty("filterValuesFileSheet") String filterValuesFileSheet) {
+        this.version = version;
         this.profileName = profileName;
-        this.filterConfig = filterConfig;
-        this.selectedSheet = selectedSheet;
-        this.displayColumns = displayColumns;
-        this.createdAt = Instant.now().toString();
+        this.rootExpression = rootExpression;
+        this.dataFilePath = dataFilePath;
+        this.filterValuesFilePath = filterValuesFilePath;
+        this.dataFileSheet = dataFileSheet;
+        this.filterValuesFileSheet = filterValuesFileSheet;
     }
 
-    // Getters for all fields to allow Jackson to serialize them
-    public String getProfileName() {
-        return profileName;
+    public FilterProfile(String profileName, FilterExpression rootExpression, String dataFilePath, String filterValuesFilePath, String dataFileSheet, String filterValuesFileSheet) {
+        this(CURRENT_VERSION, profileName, rootExpression, dataFilePath, filterValuesFilePath, dataFileSheet, filterValuesFileSheet);
     }
 
-    public String getCreatedBy() {
-        return createdBy;
-    }
-
-    public String getCreatedAt() {
-        return createdAt;
-    }
-
-    @JsonProperty("filterConfig")
-    public FilterExpression getRootExpression() {
-        return filterConfig;
-    }
-
-    public String getSelectedSheet() {
-        return selectedSheet;
-    }
-
-    public List<String> getDisplayColumns() {
-        return displayColumns;
-    }
+    // Getters for all fields
+    public int getVersion() { return version; }
+    public String getProfileName() { return profileName; }
+    public FilterExpression getRootExpression() { return rootExpression; }
+    public String getDataFilePath() { return dataFilePath; }
+    public String getFilterValuesFilePath() { return filterValuesFilePath; }
+    public String getDataFileSheet() { return dataFileSheet; }
+    public String getFilterValuesFileSheet() { return filterValuesFileSheet; }
 }

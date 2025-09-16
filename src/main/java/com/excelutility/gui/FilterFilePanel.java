@@ -154,7 +154,29 @@ public class FilterFilePanel extends JPanel {
 
     public String getFilePath() { return fileField.getText(); }
     public String getSelectedSheet() { return sheetCombo.getSelectedItem() != null ? sheetCombo.getSelectedItem().toString() : null; }
-    public JComboBox<String> getSheetCombo() { return sheetCombo; }
     public List<Integer> getHeaderRowIndices() { return headerRowIndices; }
     public ConcatenationMode getConcatenationMode() { return concatenationMode; }
+
+    public boolean setFilePath(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            this.selectedFile = null;
+            fileField.setText("");
+            allSheetNames.clear();
+            filterSheets();
+            return false;
+        }
+        File f = new File(path);
+        if (f.exists() && !f.isDirectory()) {
+            this.selectedFile = f;
+            fileField.setText(f.getAbsolutePath());
+            loadAllSheetNames();
+            filterSheets();
+            return true;
+        }
+        return false;
+    }
+
+    public JComboBox<String> getSheetCombo() {
+        return sheetCombo;
+    }
 }
