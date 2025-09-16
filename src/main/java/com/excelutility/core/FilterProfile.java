@@ -18,6 +18,7 @@ public class FilterProfile {
     private final String profileName;
     private final String createdBy = "default-user"; // Hardcoded as per plan
     private final String createdAt;
+    private final String sourceFilePath; // Added for persisting file path
     private final FilterExpression filterConfig;
     private final String selectedSheet;
     private final List<String> displayColumns;
@@ -25,11 +26,13 @@ public class FilterProfile {
     @JsonCreator
     public FilterProfile(
             @JsonProperty("profileName") String profileName,
+            @JsonProperty("sourceFilePath") String sourceFilePath,
             @JsonProperty("filterConfig") FilterExpression filterConfig,
             @JsonProperty("selectedSheet") String selectedSheet,
             @JsonProperty("displayColumns") List<String> displayColumns
     ) {
         this.profileName = profileName;
+        this.sourceFilePath = sourceFilePath;
         this.filterConfig = filterConfig;
         this.selectedSheet = selectedSheet;
         this.displayColumns = displayColumns;
@@ -60,5 +63,9 @@ public class FilterProfile {
 
     public List<String> getDisplayColumns() {
         return displayColumns;
+    }
+
+    public String getSourceFilePath() {
+        return sourceFilePath;
     }
 }

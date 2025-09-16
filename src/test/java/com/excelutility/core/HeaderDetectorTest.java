@@ -130,4 +130,51 @@ public class HeaderDetectorTest {
             new File(noMergePath).delete();
         }
     }
+
+    @Test
+    void testDetectHeaderWithDistractors() throws IOException {
+        String distractorPath = "target/test-files/distractor-header.xlsx";
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("DistractorSheet");
+
+            // Add some low-quality, but positive-scoring "distractor" rows
+            sheet.createRow(0).createCell(0).setCellValue("Report Generated On:");
+            sheet.createRow(1).createCell(0).setCellValue("2025-09-16");
+
+            // The actual header row, with a much higher quality score
+            Row headerRow = sheet.createRow(4);
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font font = workbook.createFont();
+            font.setBold(true);
+            headerStyle.setFont(font);
+            headerRow.createCell(0).setCellValue("ID");
+            headerRow.createCell(1).setCellValue("Product");
+            headerRow.createCell(2).setCellValue("Region");
+            for (int i = 0; i <= 2; i++) {
+                headerRow.getCell(i).setCellStyle(headerStyle);
+            }
+
+            // Data rows
+            sheet.createRow(5).createCell(0).setCellValue(1);
+            sheet.createRow(6).createCell(0).setCellValue(2);
+
+            try (FileOutputStream fos = new FileOutputStream(distractorPath)) {
+                workbook.write(fos);
+            }
+        }
+
+        try (Workbook workbook = WorkbookFactory.create(new File(distractorPath))) {
+            Sheet sheet = workbook.getSheet("DistractorSheet");
+            HeaderDetector detector = new HeaderDetector();
+            HeaderDetector.HeaderDetectionResult result = detector.detectHeader(sheet);
+            assertNotNull(result);
+            List<Integer> detectedRows = result.getDetectedHeaderRows();
+
+            // The new algorithm should correctly identify row 4 as the single best header
+            assertEquals(1, detectedRows.size(), "Should detect exactly one header row");
+            assertEquals(4, detectedRows.get(0), "Should detect row index 4 as the header");
+        } finally {
+            new File(distractorPath).delete();
+        }
+    }
 }

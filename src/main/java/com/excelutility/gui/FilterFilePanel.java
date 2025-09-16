@@ -153,6 +153,21 @@ public class FilterFilePanel extends JPanel {
     }
 
     public String getFilePath() { return fileField.getText(); }
+
+    public void setFilePath(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            fileField.setText("");
+            this.selectedFile = null;
+            this.allSheetNames = new ArrayList<>();
+            filterSheets();
+            return;
+        }
+        this.selectedFile = new File(path);
+        fileField.setText(path);
+        loadAllSheetNames();
+        filterSheets();
+    }
+
     public String getSelectedSheet() { return sheetCombo.getSelectedItem() != null ? sheetCombo.getSelectedItem().toString() : null; }
     public JComboBox<String> getSheetCombo() { return sheetCombo; }
     public List<Integer> getHeaderRowIndices() { return headerRowIndices; }

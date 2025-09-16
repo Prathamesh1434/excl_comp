@@ -83,24 +83,29 @@ public class FilterPanel extends JPanel {
         builderScroll.setMinimumSize(new Dimension(300, 200));
         topSplit.setLeftComponent(builderScroll);
 
-        // --- Right side: Data Previews ---
+        // --- Right side: Data Previews (Side-by-side) ---
         JPanel rightSidePanel = new JPanel(new BorderLayout(5, 5));
         rightSidePanel.setMinimumSize(new Dimension(300, 200));
         topSplit.setRightComponent(rightSidePanel);
 
-        JTabbedPane rightTabbedPane = new JTabbedPane();
-        rightSidePanel.add(rightTabbedPane, BorderLayout.CENTER);
+        JSplitPane previewSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        previewSplit.setResizeWeight(0.5);
+        rightSidePanel.add(previewSplit, BorderLayout.CENTER);
 
         dataPreviewModel = new DefaultTableModel();
         dataPreviewTable = new JTable(dataPreviewModel);
         configureTable(dataPreviewTable);
-        rightTabbedPane.addTab("Data Preview", new JScrollPane(dataPreviewTable));
+        JScrollPane dataPreviewScroll = new JScrollPane(dataPreviewTable);
+        dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview"));
+        previewSplit.setLeftComponent(dataPreviewScroll);
 
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
         configureTable(filterValuesPreviewTable);
         filterValuesPreviewTable.setCellSelectionEnabled(true);
-        rightTabbedPane.addTab("Filter Values Preview", new JScrollPane(filterValuesPreviewTable));
+        JScrollPane filterValuesPreviewScroll = new JScrollPane(filterValuesPreviewTable);
+        filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview"));
+        previewSplit.setRightComponent(filterValuesPreviewScroll);
 
         JButton addFilterButton = new JButton("Add Filter from Selection");
         addFilterButton.setToolTipText("Create filter rules from the selected cells in the Filter Values Preview table");
@@ -119,13 +124,13 @@ public class FilterPanel extends JPanel {
         resultsTabbedPane.addTab("Consolidated Results", new JScrollPane(consolidatedResultsTable));
 
         // --- Bottom Action Bar ---
-        JPanel bottomActionBar = new JPanel(new MigLayout("fillx, align center"));
+        JPanel bottomActionBar = new JPanel(new MigLayout("fillx, ins 0", "[left]push[center]push[right]"));
         bottomActionBar.setBorder(BorderFactory.createEtchedBorder());
         add(bottomActionBar, BorderLayout.SOUTH);
 
         totalMatchesLabel = new JLabel("Total Matches: N/A");
         JButton loadFilesButton = new JButton("Load Previews");
-        loadFilesButton.setToolTipText("Load the selected sheets into the preview tabs above");
+        loadFilesButton.setToolTipText("Load the selected sheets into the preview panes above");
         JButton runFilterButton = new JButton("Run Filter");
         runFilterButton.setToolTipText("Run the filter and show results in the 'Result Preview' panel");
         JButton downloadButton = new JButton("Download Results");
@@ -133,11 +138,11 @@ public class FilterPanel extends JPanel {
         JButton exitButton = new JButton("Exit");
         exitButton.setToolTipText("Exit the application");
 
-        bottomActionBar.add(loadFilesButton, "sg actionButton");
-        bottomActionBar.add(runFilterButton, "sg actionButton");
-        bottomActionBar.add(downloadButton, "sg actionButton");
-        bottomActionBar.add(totalMatchesLabel, "gapleft 20");
-        bottomActionBar.add(exitButton, "gapleft push");
+        bottomActionBar.add(loadFilesButton, "sg actionButton, cell 0 0");
+        bottomActionBar.add(runFilterButton, "sg actionButton, cell 1 0, split 3, center");
+        bottomActionBar.add(downloadButton, "sg actionButton, center");
+        bottomActionBar.add(totalMatchesLabel, "sg actionButton, center");
+        bottomActionBar.add(exitButton, "sg actionButton, cell 2 0");
 
         // --- Action Listeners ---
         loadFilesButton.addActionListener(e -> loadPreviews());
@@ -582,7 +587,7 @@ public class FilterPanel extends JPanel {
             return;
         }
 
-        FilterProfile profile = new FilterProfile(profileName.trim(), expression, dataSheet, columns);
+        FilterProfile profile = new FilterProfile(profileName.trim(), dataFilePanel.getFilePath(), expression, dataSheet, columns);
 
         try {
             profileService.saveProfile(profile);
@@ -626,6 +631,12 @@ public class FilterPanel extends JPanel {
         filterExpressionBuilderPanel.getRootGroup().removeAll();
         com.excelutility.core.AutoNamingService.reset();
 
+        // Set file path first, which will trigger sheet loading
+        if (profile.getSourceFilePath() != null && !profile.getSourceFilePath().isEmpty()) {
+            dataFilePanel.setFilePath(profile.getSourceFilePath());
+        }
+
+        // Now set the selected sheet
         dataFilePanel.getSheetCombo().setSelectedItem(profile.getSelectedSheet());
 
         // Check for missing columns

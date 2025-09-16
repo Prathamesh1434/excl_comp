@@ -1,6 +1,26 @@
 # Application Architecture
 
-This document provides a high-level overview of the application architecture for the "SPEC QA Recon" feature. The application follows a classic desktop GUI architecture that separates concerns into a few distinct layers, resembling a Model-View-Controller (MVC) pattern.
+## High-Level Workflow (Filter Mode)
+
+This diagram shows the end-to-end user journey for the "SPEC QA Recon" (Filter) mode.
+
+```mermaid
+graph TD
+    A[Start] --> B{Select Data File};
+    B --> C{Select Sheet};
+    C --> D[Detect Header Rows];
+    D --> E[Build Filter Expression];
+    E --> F{Run Filter};
+    F --> G[View Results Preview];
+    G --> H{Save Profile?};
+    H -- Yes --> I[Save Profile to JSON];
+    H -- No --> J[End];
+    I --> J;
+    E --> B;
+```
+
+This document provides a high-level overview of the application architecture for the "SPEC QA Recon" feature. The application follows a classic desktop GUI architecture that separates concerns into a few distinct layers, resembling a Model-V
+iew-Controller (MVC) pattern.
 
 *   **View (GUI Layer - `com.excelutility.gui`)**: Contains all Swing components (`JFrame`, `JPanel`, etc.) that the user interacts with. This layer is responsible for rendering the UI and capturing user input.
 *   **Controller/Service (Core Logic Layer - `com.excelutility.core`)**: Contains the business logic. It orchestrates the main operations like filtering data and acts as the bridge between the UI and the lower-level I/O operations.

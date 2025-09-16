@@ -50,7 +50,7 @@ public class FilterProfileServiceTest {
         String sheetName = "Sheet1";
         String profileName = "Test Profile 1";
 
-        FilterProfile originalProfile = new FilterProfile(profileName, root, sheetName, columns);
+        FilterProfile originalProfile = new FilterProfile(profileName, "dummy/path.xlsx", root, sheetName, columns);
 
         // 2. Save the profile
         profileService.saveProfile(originalProfile);
@@ -84,8 +84,8 @@ public class FilterProfileServiceTest {
     void testProfileVersioning() throws IOException {
         // 1. Create two profiles with the same name
         String profileName = "Versioned Profile";
-        FilterProfile profile1 = new FilterProfile(profileName, new GroupNode(FilteringService.LogicalOperator.AND, "Root"), "Sheet1", List.of("A"));
-        FilterProfile profile2 = new FilterProfile(profileName, new GroupNode(FilteringService.LogicalOperator.OR, "Root"), "Sheet2", List.of("B"));
+        FilterProfile profile1 = new FilterProfile(profileName, "path1.xlsx", new GroupNode(FilteringService.LogicalOperator.AND, "Root"), "Sheet1", List.of("A"));
+        FilterProfile profile2 = new FilterProfile(profileName, "path2.xlsx", new GroupNode(FilteringService.LogicalOperator.OR, "Root"), "Sheet2", List.of("B"));
 
         // 2. Save both
         profileService.saveProfile(profile1);

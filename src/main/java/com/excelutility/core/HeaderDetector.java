@@ -64,18 +64,44 @@ public class HeaderDetector {
             scores.add(calculateRowConfidence(row));
         }
 
-        // Simple logic for now: pick the top N contiguous rows with the highest scores
-        // A more advanced implementation would find the best "block" of rows.
-        scores.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+        // New strategy: Find the best row ("anchor") and expand from there.
+        if (scores.isEmpty()) {
+            return new HeaderDetectionResult(new ArrayList<>(), scores);
+        }
+
+        // Find the row with the highest individual score.
+        RowConfidence anchorRow = scores.stream()
+            .max((r1, r2) -> Double.compare(r1.getScore(), r2.getScore()))
+            .orElse(null);
+
+        if (anchorRow == null || anchorRow.getScore() < 0.2) { // If best row is not good enough, assume no header.
+            return new HeaderDetectionResult(new ArrayList<>(), scores);
+        }
 
         List<Integer> bestHeaderRows = new ArrayList<>();
-        for (int i = 0; i < Math.min(DEFAULT_HEADER_CANDIDATE_COUNT, scores.size()); i++) {
-            if (scores.get(i).getScore() > 0.1) { // Basic threshold
-                 bestHeaderRows.add(scores.get(i).getRowIndex());
+        bestHeaderRows.add(anchorRow.getRowIndex());
+
+        // Expand upwards from the anchor
+        for (int i = anchorRow.getRowIndex() - 1; i >= 0; i--) {
+            RowConfidence rowAbove = scores.get(i);
+            if (rowAbove.getScore() > 0.1) { // Threshold for neighbors
+                bestHeaderRows.add(rowAbove.getRowIndex());
+            } else {
+                break; // Stop expanding if we hit a non-header-like row
             }
         }
-        bestHeaderRows.sort(Integer::compareTo);
 
+        // Expand downwards from the anchor
+        for (int i = anchorRow.getRowIndex() + 1; i < scores.size(); i++) {
+            RowConfidence rowBelow = scores.get(i);
+            if (rowBelow.getScore() > 0.1) {
+                bestHeaderRows.add(rowBelow.getRowIndex());
+            } else {
+                break;
+            }
+        }
+
+        bestHeaderRows.sort(Integer::compareTo);
         return new HeaderDetectionResult(bestHeaderRows, scores);
     }
 
