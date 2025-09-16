@@ -7,7 +7,6 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.font.TextAttribute;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,52 +20,69 @@ public class ColumnMappingPanel extends JPanel {
     private final DefaultListModel<String> keyListModel;
 
     public ColumnMappingPanel() {
-        setLayout(new MigLayout("fill, insets 5", "[grow, 70%][grow, 30%]", "[grow][]"));
-        setBorder(BorderFactory.createTitledBorder("Column Mappings & Row Matching"));
+        // A more structured layout with standardized gaps.
+        setLayout(new MigLayout("fill, insets 15", "[65%, grow, fill][35%, grow, fill]", "[][grow, fill][]"));
 
+        // --- Header ---
+        JLabel headerLabel = new JLabel("Column Mappings & Row Matching");
+        headerLabel.setFont(UIConstants.FONT_SUBHEADING);
+        headerLabel.setForeground(UIConstants.COLOR_TEXT_HEADER);
+        add(headerLabel, "span, gaptop 5, gapbottom 10, wrap");
+
+        // --- Mapping Table ---
         tableModel = new ColumnMappingTableModel();
         mappingTable = new JTable(tableModel);
-        mappingTable.setRowHeight(25);
-        mappingTable.getTableHeader().setReorderingAllowed(false);
-
-        // Add custom renderer for ignored rows
+        mappingTable.setRowHeight(28);
+        mappingTable.getTableHeader().setFont(UIConstants.FONT_LABEL.deriveFont(Font.BOLD));
+        mappingTable.setFont(UIConstants.FONT_BODY);
         mappingTable.setDefaultRenderer(Object.class, new IgnoredRowRenderer());
+        mappingTable.getTableHeader().setReorderingAllowed(false);
+        JScrollPane mappingScrollPane = new JScrollPane(mappingTable);
+        mappingScrollPane.setBorder(UIConstants.BORDER_PANEL);
+        add(mappingScrollPane, "grow");
 
         tableModel.addTableModelListener(e -> {
             if (e.getType() == TableModelEvent.UPDATE) {
                 updateKeyList();
-                mappingTable.repaint(); // Repaint to reflect ignore changes
+                mappingTable.repaint();
             }
         });
 
-        add(new JScrollPane(mappingTable), "grow, hmin 150");
-
+        // --- Selected Keys Panel ---
         keyListModel = new DefaultListModel<>();
         keyList = new JList<>(keyListModel);
-        JPanel keyPanel = new JPanel(new MigLayout("fill", "[grow]", "[grow]"));
-        keyPanel.setBorder(BorderFactory.createTitledBorder("Selected Keys"));
+        keyList.setFont(UIConstants.FONT_BODY);
+        JPanel keyPanel = new JPanel(new MigLayout("fill, insets 10", "[grow]", "[][grow]"));
+        keyPanel.setBorder(UIConstants.BORDER_PANEL);
+        JLabel keyPanelHeader = new JLabel("Selected Keys (for matching)");
+        keyPanelHeader.setFont(UIConstants.FONT_LABEL.deriveFont(Font.BOLD));
+        keyPanel.add(keyPanelHeader, "wrap");
         keyPanel.add(new JScrollPane(keyList), "grow");
         add(keyPanel, "grow, wrap");
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton autoMapButton = new JButton("Auto-map");
+        // --- Button Panel ---
+        JPanel buttonPanel = new JPanel(new MigLayout("insets 0", "[]push[]")); // push moves components apart
+        JButton autoMapButton = new JButton("Auto-map by Name");
         JButton clearIgnoresButton = new JButton("Clear All Ignores");
+        autoMapButton.setFont(UIConstants.FONT_BUTTON);
+        clearIgnoresButton.setFont(UIConstants.FONT_BUTTON);
         buttonPanel.add(autoMapButton);
         buttonPanel.add(clearIgnoresButton);
-        add(buttonPanel, "growx, span 2");
+        add(buttonPanel, "span, growx, gaptop 10");
 
         clearIgnoresButton.addActionListener(e -> clearAllIgnores());
+        autoMapButton.addActionListener(e -> tableModel.autoMapByName());
     }
 
     public void setColumns(List<String> sourceCols, List<String> targetCols) {
         tableModel.setSourceColumns(sourceCols, targetCols);
         TableColumn targetColumn = mappingTable.getColumnModel().getColumn(1);
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setFont(UIConstants.FONT_BODY);
         if (targetCols != null) {
             targetCols.forEach(comboBox::addItem);
         }
         targetColumn.setCellEditor(new DefaultCellEditor(comboBox));
-        mappingTable.setDefaultRenderer(String.class, new IgnoredRowRenderer());
     }
 
     public Map<String, String> getColumnMappings() {
@@ -126,44 +142,38 @@ public class ColumnMappingPanel extends JPanel {
     }
 
     public void selectKeysFromTarget(List<String> targetKeyNames) {
-        Map<String, String> targetToSourceMap = getColumnMappings().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+        Map<String, String> sourceToTarget = getColumnMappings();
+        Map<String, String> targetToSource = sourceToTarget.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey, (v1, v2) -> v1)); // handle duplicates
+
         List<String> sourceKeysToSelect = targetKeyNames.stream()
-                .map(targetToSourceMap::get)
+                .map(targetToSource::get)
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toList());
+
         if (!sourceKeysToSelect.isEmpty()) {
             this.selectKeys(sourceKeysToSelect);
         }
     }
 
-    /**
-     * Custom renderer to draw ignored rows with a strikethrough.
-     */
     private class IgnoredRowRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             boolean isIgnored = (boolean) table.getModel().getValueAt(row, 3);
 
-            if (isIgnored) {
-                c.setForeground(Color.GRAY);
-                Map<TextAttribute, Object> attributes = new HashMap<>(getFont().getAttributes());
-                attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
-                c.setFont(getFont().deriveFont(attributes));
-                setToolTipText("Ignored - excluded from comparison");
-            } else {
-                c.setForeground(table.getForeground());
-                c.setFont(table.getFont());
-                setToolTipText(null);
-            }
-
             if (isSelected) {
                 c.setBackground(table.getSelectionBackground());
                 c.setForeground(table.getSelectionForeground());
             } else {
                 c.setBackground(table.getBackground());
+                c.setForeground(isIgnored ? Color.GRAY : table.getForeground());
             }
+
+            Map<TextAttribute, Object> attributes = new HashMap<>(c.getFont().getAttributes());
+            attributes.put(TextAttribute.STRIKETHROUGH, isIgnored ? TextAttribute.STRIKETHROUGH_ON : false);
+            c.setFont(c.getFont().deriveFont(attributes));
+            setToolTipText(isIgnored ? "This column is ignored and will not be compared." : null);
 
             return c;
         }

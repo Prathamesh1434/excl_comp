@@ -1,12 +1,13 @@
 package com.excelutility.gui;
 
+import com.excelutility.core.ConcatenationMode;
 import com.excelutility.core.FilterGroup;
 import com.excelutility.core.FilterManager;
 import com.excelutility.io.ExcelReader;
+import net.miginfocom.swing.MigLayout;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import net.miginfocom.swing.MigLayout;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -15,90 +16,76 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class FileConfigPanel extends JPanel {
 
-    // ... (fields remain the same, plus new ones)
     private final JTextField fileField = new JTextField();
     private final JComboBox<String> sheetCombo = new JComboBox<>();
-    private final JRadioButton noHeaderRadio = new JRadioButton("No Header");
-    private final JRadioButton singleHeaderRadio = new JRadioButton("Single Header Row", true);
+    private final JRadioButton singleHeaderRadio = new JRadioButton("Single Header (Row 1)", true);
     private final JRadioButton multiHeaderRadio = new JRadioButton("Multi-row Header");
-    private final JSpinner singleHeaderSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+    private final JButton detectHeaderButton;
     private final JButton autoSuggestButton;
     private final JButton filterButton;
-    private final JButton openButton;
     private final JButton previewButton;
-    private final JComboBox<String> savedFiltersCombo;
-    private final JButton loadFilterButton;
-    private final JButton clearFilterButton;
-    private final JButton detectHeaderButton;
 
     private FilterGroup activeFilterGroup;
-    private List<Integer> headerRowIndices = new ArrayList<>();
-    private com.excelutility.core.ConcatenationMode concatenationMode = com.excelutility.core.ConcatenationMode.LEAF_ONLY;
-    private List<String> availableColumns;
+    private List<Integer> headerRowIndices = new ArrayList<>(Collections.singletonList(0));
+    private ConcatenationMode concatenationMode = ConcatenationMode.LEAF_ONLY;
+    private List<String> availableColumns = new ArrayList<>();
     private File selectedFile;
     private final Component parent;
 
     public FileConfigPanel(String title, Component parent) {
         this.parent = parent;
-        setLayout(new MigLayout("fillx", "[][grow][][]", ""));
-        setBorder(BorderFactory.createTitledBorder(title));
+        setLayout(new MigLayout("fillx, insets 15, wrap 2", "[pref!][grow, fill]", "[]5[]10[]5[]10[]"));
 
-        // --- UI Components ---
+        JLabel headerLabel = new JLabel(title);
+        headerLabel.setFont(UIConstants.FONT_SUBHEADING);
+        headerLabel.setForeground(UIConstants.COLOR_TEXT_HEADER);
+        add(headerLabel, "span, gaptop 5, gapbottom 10");
+
+        add(new JLabel("File Path:"));
+        JPanel filePanel = new JPanel(new MigLayout("fillx, insets 0", "[grow, fill][][]"));
         fileField.setEditable(true);
-        openButton = new JButton("Browse...");
+        filePanel.add(fileField, "growx");
+        JButton openButton = new JButton("Browse...");
         previewButton = new JButton("Preview");
-        autoSuggestButton = new JButton("Auto-Suggest Keys");
-        filterButton = new JButton("Filter...");
-        savedFiltersCombo = new JComboBox<>();
-        loadFilterButton = new JButton("Load");
-        clearFilterButton = new JButton("Clear");
-        detectHeaderButton = new JButton("Detect Header");
-
-        // --- Layout ---
-        add(new JLabel("File:"));
-        add(fileField, "growx");
-        add(openButton);
-        add(previewButton, "wrap");
-        add(new JLabel("Sheet:"));
-        add(sheetCombo, "growx, span 3, wrap");
-
-        add(new JSeparator(), "span, growx, wrap, gaptop 5");
-        add(new JLabel("Header Options:"), "span, wrap, gaptop 5");
-        add(noHeaderRadio, "split 3");
-        add(singleHeaderRadio);
-        add(multiHeaderRadio, "wrap");
-        add(new JLabel("Row Index:"), "gapleft 20");
-        add(singleHeaderSpinner, "wrap");
-        add(detectHeaderButton, "span, growx, wrap, gaptop 5");
-
-        add(new JSeparator(), "span, growx, wrap, gaptop 5");
-
-        add(new JLabel("Actions:"), "gaptop 5");
-        add(autoSuggestButton, "span 3, split 2, growx");
-        add(filterButton, "wrap");
-
-        add(new JLabel("Saved Filters:"), "gaptop 5");
-        add(savedFiltersCombo, "span 3, split 3, growx");
-        add(loadFilterButton);
-        add(clearFilterButton, "wrap");
-
-        // --- Action Listeners ---
         openButton.addActionListener(e -> selectFile());
+        filePanel.add(openButton);
+        filePanel.add(previewButton);
+        add(filePanel, "span, growx, wrap");
+
+        add(new JLabel("Sheet:"));
+        sheetCombo.addActionListener(e -> {
+            if (e.getActionCommand().equals("comboBoxChanged")) {
+                loadHeadersForFilter();
+            }
+        });
+        add(sheetCombo, "growx, wrap");
+
+        add(new JLabel("Header:"), "gaptop 10");
+        JPanel headerPanel = new JPanel(new MigLayout("fillx, insets 0", "[][]"));
+        ButtonGroup headerGroup = new ButtonGroup();
+        headerGroup.add(singleHeaderRadio);
+        headerGroup.add(multiHeaderRadio);
+        headerPanel.add(singleHeaderRadio);
+        headerPanel.add(multiHeaderRadio);
+        detectHeaderButton = new JButton("Detect Headers...");
         detectHeaderButton.addActionListener(e -> detectHeader());
+        headerPanel.add(detectHeaderButton, "gapleft 20");
+        add(headerPanel, "wrap");
+
+        add(new JLabel("Actions:"), "gaptop 10, aligny top");
+        JPanel actionPanel = new JPanel(new MigLayout("fillx, insets 0", "[grow, fill][grow, fill]"));
+        autoSuggestButton = new JButton("Auto-Suggest Keys");
+        filterButton = new JButton("Set Pre-Filter...");
         filterButton.addActionListener(e -> openFilterBuilder());
-        loadFilterButton.addActionListener(e -> loadSelectedFilter());
-        clearFilterButton.addActionListener(e -> clearActiveFilter());
-
-        noHeaderRadio.addActionListener(e -> singleHeaderSpinner.setEnabled(false));
-        singleHeaderRadio.addActionListener(e -> singleHeaderSpinner.setEnabled(true));
-        multiHeaderRadio.addActionListener(e -> singleHeaderSpinner.setEnabled(false));
-
-        updateSavedFilters();
+        actionPanel.add(autoSuggestButton);
+        actionPanel.add(filterButton);
+        add(actionPanel, "wrap");
     }
 
     private void detectHeader() {
@@ -115,7 +102,8 @@ public class FileConfigPanel extends JPanel {
                 if (dialog.isConfirmed()) {
                     this.headerRowIndices = dialog.getSelectedHeaderRowIndices();
                     this.concatenationMode = dialog.getConcatenationMode();
-                    JOptionPane.showMessageDialog(this, "Header rows set to: " + headerRowIndices.toString(), "Header Detection", JOptionPane.INFORMATION_MESSAGE);
+                    multiHeaderRadio.setSelected(true);
+                    JOptionPane.showMessageDialog(this, "Header rows set to: " + headerRowIndices.stream().map(i -> i + 1).collect(Collectors.toList()).toString(), "Header Detection", JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         } catch (Exception e) {
@@ -123,11 +111,10 @@ public class FileConfigPanel extends JPanel {
         }
     }
 
-    // ... (rest of the methods: selectFile, populateSheetCombo, etc. remain the same)
     private void selectFile() {
         JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Select Excel File");
         FileNameExtensionFilter excelFilter = new FileNameExtensionFilter("Excel Files (*.xls, *.xlsx)", "xls", "xlsx");
-        chooser.addChoosableFileFilter(excelFilter);
         chooser.setFileFilter(excelFilter);
         if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
             this.selectedFile = chooser.getSelectedFile();
@@ -156,23 +143,23 @@ public class FileConfigPanel extends JPanel {
     private void loadHeadersForFilter() {
         try {
             if (getFilePath() != null && !getFilePath().isEmpty() && getSelectedSheet() != null) {
-                List<List<Object>> headerData = ExcelReader.read(getFilePath(), getSelectedSheet(), true);
+                List<List<Object>> headerData = ExcelReader.readPreview(getFilePath(), getSelectedSheet(), 20);
                 if (!headerData.isEmpty()) {
-                    this.availableColumns = headerData.get(0).stream().map(Object::toString).collect(Collectors.toList());
+                    this.availableColumns = headerData.get(getHeaderRowIndices().get(0)).stream().map(Object::toString).collect(Collectors.toList());
                 } else {
-                    this.availableColumns = null;
+                    this.availableColumns = new ArrayList<>();
                 }
             }
         } catch (Exception e) {
-            this.availableColumns = null;
+            this.availableColumns = new ArrayList<>();
         }
     }
 
     private void openFilterBuilder() {
-        if (availableColumns == null || availableColumns.isEmpty()) {
+        if (availableColumns.isEmpty()) {
             loadHeadersForFilter();
         }
-        if (availableColumns == null || availableColumns.isEmpty()) {
+        if (availableColumns.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Could not load column headers. Please check the file and sheet selection.", "No Columns Found", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -183,34 +170,18 @@ public class FileConfigPanel extends JPanel {
             this.activeFilterGroup = dialog.getFilterGroup();
             JOptionPane.showMessageDialog(this, "Filter has been set and will be applied on the next comparison.", "Filter Set", JOptionPane.INFORMATION_MESSAGE);
         }
-        updateSavedFilters();
     }
 
-    private void loadSelectedFilter() {
-        String selectedFilterName = (String) savedFiltersCombo.getSelectedItem();
-        if (selectedFilterName == null) {
-            JOptionPane.showMessageDialog(this, "No saved filter selected.", "Load Filter", JOptionPane.WARNING_MESSAGE);
-            return;
+    public List<Integer> getHeaderRowIndices() {
+        if (multiHeaderRadio.isSelected()) {
+            return headerRowIndices;
         }
-        this.activeFilterGroup = FilterManager.getInstance().getFilter(selectedFilterName);
-        JOptionPane.showMessageDialog(this, "Filter '" + selectedFilterName + "' loaded and will be applied on the next comparison.", "Filter Loaded", JOptionPane.INFORMATION_MESSAGE);
+        return new ArrayList<>(Collections.singletonList(0));
     }
 
-    private void clearActiveFilter() {
-        this.activeFilterGroup = null;
-        JOptionPane.showMessageDialog(this, "Active filter has been cleared.", "Filter Cleared", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    public void updateSavedFilters() {
-        savedFiltersCombo.removeAllItems();
-        FilterManager.getInstance().getSavedFilterNames().forEach(savedFiltersCombo::addItem);
-    }
-
-    // --- Public Getters and Setters ---
-    public List<Integer> getHeaderRowIndices() { return headerRowIndices; }
-    public void setHeaderRowIndices(List<Integer> indices) { this.headerRowIndices = indices; }
-    public com.excelutility.core.ConcatenationMode getConcatenationMode() { return concatenationMode; }
-    public void setConcatenationMode(com.excelutility.core.ConcatenationMode mode) { this.concatenationMode = mode; }
+    public void setHeaderRowIndices(List<Integer> indices) { this.headerRowIndices = indices; multiHeaderRadio.setSelected(true); }
+    public ConcatenationMode getConcatenationMode() { return concatenationMode; }
+    public void setConcatenationMode(ConcatenationMode mode) { this.concatenationMode = mode; }
     public String getFilePath() { return fileField.getText(); }
     public String getSelectedSheet() { return sheetCombo.getSelectedItem() != null ? sheetCombo.getSelectedItem().toString() : null; }
     public void setFilePath(String path) {
@@ -229,5 +200,4 @@ public class FileConfigPanel extends JPanel {
     public JComboBox<String> getSheetCombo() { return sheetCombo; }
     public JButton getAutoSuggestButton() { return autoSuggestButton; }
     public JButton getPreviewButton() { return previewButton; }
-    public void addSheetSelectionListener(java.awt.event.ActionListener listener) { sheetCombo.addActionListener(listener); }
 }

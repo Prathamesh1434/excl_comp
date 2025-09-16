@@ -17,13 +17,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * A panel for selecting an Excel file and a specific sheet from it.
- * Includes functionality for searching sheets and detecting multi-row headers.
- */
 public class FilterFilePanel extends JPanel {
 
     private final JTextField fileField = new JTextField();
@@ -31,37 +28,45 @@ public class FilterFilePanel extends JPanel {
     private final JButton detectHeaderButton;
     private final JTextField searchField = new JTextField();
 
-    private List<Integer> headerRowIndices = new ArrayList<>();
+    private List<Integer> headerRowIndices = new ArrayList<>(Collections.singletonList(0));
     private ConcatenationMode concatenationMode = ConcatenationMode.LEAF_ONLY;
     private File selectedFile;
     private final Component parent;
     private List<String> allSheetNames = new ArrayList<>();
 
-    /**
-     * Constructs a new file selection panel.
-     * @param title  The title to display in the panel's border.
-     * @param parent The parent component, used for dialog positioning.
-     */
     public FilterFilePanel(String title, Component parent) {
         this.parent = parent;
-        setLayout(new MigLayout("fillx", "[][grow][]", ""));
-        setBorder(BorderFactory.createTitledBorder(title));
+        setLayout(new MigLayout("fillx, insets 15, wrap 2", "[pref!][grow, fill]"));
 
-        fileField.setEditable(false);
+        // Modern header label
+        JLabel headerLabel = new JLabel(title);
+        headerLabel.setFont(UIConstants.FONT_SUBHEADING);
+        headerLabel.setForeground(UIConstants.COLOR_TEXT_HEADER);
+        add(headerLabel, "span, gaptop 5, gapbottom 10, wrap");
+
+        // --- File Selection ---
+        add(new JLabel("File Path:"));
+        JPanel filePanel = new JPanel(new MigLayout("fillx, insets 0", "[grow, fill][]"));
+        fileField.setEditable(false); // Make it read-only, only populated by chooser
+        filePanel.add(fileField, "growx");
         JButton openButton = new JButton("Browse...");
-        detectHeaderButton = new JButton("Detect Header");
-
-        add(new JLabel("File:"));
-        add(fileField, "growx");
-        add(openButton, "wrap");
-        add(new JLabel("Search Sheet:"));
-        add(searchField, "growx, span 2, wrap");
-        add(new JLabel("Sheet:"));
-        add(sheetCombo, "growx, span 2, wrap, gaptop 5");
-        add(detectHeaderButton, "span, growx, gaptop 5");
-
         openButton.addActionListener(e -> selectFile());
+        filePanel.add(openButton);
+        add(filePanel, "span, growx, wrap");
+
+        // --- Sheet Selection ---
+        add(new JLabel("Search Sheet:"));
+        add(searchField, "growx, wrap");
+
+        add(new JLabel("Sheet Name:"));
+        add(sheetCombo, "growx, wrap");
+
+        // --- Header Configuration ---
+        detectHeaderButton = new JButton("Detect Headers...");
         detectHeaderButton.addActionListener(e -> detectHeader());
+        add(detectHeaderButton, "span, growx, gaptop 10");
+
+        // --- Event Listeners ---
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) { filterSheets(); }
@@ -74,8 +79,8 @@ public class FilterFilePanel extends JPanel {
 
     private void selectFile() {
         JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Select Excel File");
         FileNameExtensionFilter excelFilter = new FileNameExtensionFilter("Excel Files (*.xls, *.xlsx)", "xls", "xlsx");
-        chooser.addChoosableFileFilter(excelFilter);
         chooser.setFileFilter(excelFilter);
         if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
             this.selectedFile = chooser.getSelectedFile();
@@ -124,7 +129,7 @@ public class FilterFilePanel extends JPanel {
                 if (dialog.isConfirmed()) {
                     this.headerRowIndices = dialog.getSelectedHeaderRowIndices();
                     this.concatenationMode = dialog.getConcatenationMode();
-                    JOptionPane.showMessageDialog(this, "Header rows set to: " + headerRowIndices.toString(), "Header Detection", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "Header rows set to: " + headerRowIndices.stream().map(i->i+1).collect(Collectors.toList()).toString(), "Header Detection", JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         } catch (Exception e) {
@@ -132,15 +137,11 @@ public class FilterFilePanel extends JPanel {
         }
     }
 
-    /**
-     * Gets the canonical column headers from the selected sheet, respecting multi-row header settings.
-     * @return A list of header strings.
-     */
     public List<String> getColumnNames() {
         if (selectedFile == null || getSelectedSheet() == null) {
             return new ArrayList<>();
         }
-        try (Workbook workbook = WorkbookFactory.create(selectedFile)) {
+        try (Workbook workbook = WorkbookFactory.create(selectedFile, true)) { // Read-only for safety
             Sheet sheet = workbook.getSheet(getSelectedSheet());
             if (sheet == null) return new ArrayList<>();
 
@@ -154,6 +155,6 @@ public class FilterFilePanel extends JPanel {
 
     public String getFilePath() { return fileField.getText(); }
     public String getSelectedSheet() { return sheetCombo.getSelectedItem() != null ? sheetCombo.getSelectedItem().toString() : null; }
-    public List<Integer> getHeaderRowIndices() { return headerRowIndices; }
+    public List<Integer> getHeaderRowIndices() { return headerRowIndices.isEmpty() ? List.of(0) : headerRowIndices; }
     public ConcatenationMode getConcatenationMode() { return concatenationMode; }
 }
