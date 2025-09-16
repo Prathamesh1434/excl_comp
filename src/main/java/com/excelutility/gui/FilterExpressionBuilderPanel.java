@@ -21,13 +21,12 @@ public class FilterExpressionBuilderPanel extends JPanel {
     public FilterExpressionBuilderPanel(FilterPanel panelProvider) {
         this.panelProvider = panelProvider;
         setLayout(new MigLayout("fill, insets 5", "[grow]"));
-        setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
 
         // The root group cannot be deleted, so its delete listener is null.
-        rootGroup = new LogicalGroupPanel("Root", null);
-        add(rootGroup, "growx");
+        // Pass the panelProvider (FilterPanel) to the root group.
+        rootGroup = new LogicalGroupPanel("Root", null, true, this.panelProvider);
 
-        // The FilterPanel is now responsible for wiring up all buttons.
+        add(rootGroup, "growx");
     }
 
     /**
@@ -43,6 +42,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
         };
         FilterRulePanel newRulePanel = new FilterRulePanel(rule, panelProvider, deleteListener);
         targetGroup.addComponent(newRulePanel);
+        panelProvider.calculateCountForRule(rule, newRulePanel);
     }
 
     /**

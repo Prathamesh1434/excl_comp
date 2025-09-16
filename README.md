@@ -21,22 +21,17 @@ This mode allows you to perform a detailed comparison of two Excel files.
 
 ### 2. SPEC QA Recon (New)
 
-This mode allows you to filter one Excel file based on a list of values or entire columns from another Excel file.
+This mode provides a powerful interface for filtering an Excel file based on complex, user-defined rules. The screen is divided into a **Filter Logic Builder** on the left, a **Data Viewer** on the right, and an **Action Bar** at the bottom.
 
 **Key Features**:
 
--   **Advanced Header Detection**: Both the data file and the filter-values file support single-row, multi-row, and merged-cell headers, ensuring accurate data parsing.
--   **Interactive Filter Creation**: Load a "Data File" and a "Filter Values File". Simply double-click any cell (or select multiple cells) in the "Filter Values" preview table to create a filter.
--   **Flexible Filter Sources**: A dialog will ask if you want to filter by the specific **cell value** you clicked, or by all values in that cell's **column**.
--   **Targeted Filtering**: After choosing your filter source, another dialog lets you apply the filter to one or more columns in your Data File. You can also choose to **trim whitespace** from the target column for more robust matching.
--   **Immediate Record Counting**: As soon as a filter is created, the application runs a background check and displays the number of matching records. The count is color-coded: **green for > 0** records, **red for 0**.
--   **Enhanced Previews**: Preview tables now have a grid-like appearance and support column sorting.
--   **Sheet Search**: A new search bar allows you to dynamically filter the list of sheets in a workbook.
--   **Empty Cell Filtering**: The tool now correctly handles filtering by empty or null cells.
--   **Configurable Export**:
-    -   Download all filtered results into a **single Excel file** with one sheet per filter, or as **separate files**.
-    -   If a filter yields no results, an export file is still created with a "No rows matched" message.
-    -   Choose a custom **highlight color** for the filtered rows in the exported files.
+-   **Robust Data Handling**: Advanced header detection for multi-row and merged-cell headers, proper handling of empty cells, and special character mapping (`'P'` -> `✓`).
+-   **Sequential Multi-Cell Filtering**: Select multiple cells from the "Filter Values Preview" table, and a guided dialog flow will walk you through creating a separate, specific rule for each selection, one by one.
+-   **Advanced Grouping Logic**: Create nested groups of filters and combine them with explicit `AND` or `OR` connectors that appear between each rule or group, providing a clear and intuitive way to build complex expressions.
+-   **Live Match Counts**: As soon as a rule is created, the application runs a background check and displays the number of matching records, color-coded for instant feedback (green for > 0, red for 0).
+-   **Dynamic Results Preview**: No more dialogs. View results for the entire filter set in a "Consolidated Results" tab, or click the "View" button on any rule/group to see its specific results in a new, closable tab with its own download/copy actions.
+-   **Profile Versioning**: Saving a profile with an existing name now creates a new, versioned file (e.g., `MyProfile-v2.json`) instead of overwriting, preserving your work history.
+-   **Profile Manager**: A new dialog available from the "Edit" menu allows you to view, load, and delete all saved profile versions.
 
 ## Technical Stack
 

@@ -100,4 +100,34 @@ public class HeaderDetectorTest {
             assertTrue(detectedRows.contains(2));
         }
     }
+
+    @Test
+    void testDetectHeaderNoMerge() throws IOException {
+        // Create a new file without merged regions
+        String noMergePath = "target/test-files/no-merge-header.xlsx";
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("NoMergeSheet");
+            Row row0 = sheet.createRow(0);
+            row0.createCell(0).setCellValue("ID");
+            row0.createCell(1).setCellValue("Name");
+            Row row1 = sheet.createRow(1);
+            row1.createCell(0).setCellValue(1);
+            row1.createCell(1).setCellValue("Data");
+            try (FileOutputStream fos = new FileOutputStream(noMergePath)) {
+                workbook.write(fos);
+            }
+        }
+
+        try (Workbook workbook = WorkbookFactory.create(new File(noMergePath))) {
+            Sheet sheet = workbook.getSheet("NoMergeSheet");
+            HeaderDetector detector = new HeaderDetector();
+            HeaderDetector.HeaderDetectionResult result = detector.detectHeader(sheet);
+            assertNotNull(result);
+            List<Integer> detectedRows = result.getDetectedHeaderRows();
+            assertEquals(1, detectedRows.size());
+            assertTrue(detectedRows.contains(0));
+        } finally {
+            new File(noMergePath).delete();
+        }
+    }
 }

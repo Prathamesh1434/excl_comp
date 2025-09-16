@@ -14,6 +14,7 @@ public class FilterSourceDialog extends JDialog {
 
     private FilterRule.SourceType selectedType;
     private String selectedValue;
+    private boolean cancelled = true;
 
     /**
      * Constructs the dialog.
@@ -40,12 +41,14 @@ public class FilterSourceDialog extends JDialog {
         byValueButton.addActionListener(e -> {
             this.selectedType = FilterRule.SourceType.BY_VALUE;
             this.selectedValue = (value == null) ? "" : value;
+            this.cancelled = false;
             setVisible(false);
         });
 
         byColumnButton.addActionListener(e -> {
             this.selectedType = FilterRule.SourceType.BY_COLUMN;
             this.selectedValue = columnName;
+            this.cancelled = false;
             setVisible(false);
         });
 
@@ -66,5 +69,12 @@ public class FilterSourceDialog extends JDialog {
      */
     public String getSelectedValue() {
         return selectedValue;
+    }
+
+    /**
+     * @return True if the dialog was closed without making a selection, false otherwise.
+     */
+    public boolean isCancelled() {
+        return cancelled;
     }
 }
