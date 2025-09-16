@@ -59,6 +59,24 @@ public class ColumnMappingTableModel extends AbstractTableModel {
         fireTableDataChanged();
     }
 
+    public void autoMapByName() {
+        for (Object[] rowData : data) {
+            if (rowData[1] == null) { // Only map if not already mapped
+                String sourceCol = (String) rowData[0];
+                for (int i = 0; i < getRowCount(); i++) {
+                    // This is a simplification. A real implementation would need access to the full target list.
+                    // For now, we assume the target list is implicitly available via other rows.
+                    String targetCol = (String) getValueAt(i, 1);
+                    if (targetCol != null && sourceCol.trim().equalsIgnoreCase(targetCol.trim())) {
+                        rowData[1] = targetCol;
+                        break;
+                    }
+                }
+            }
+        }
+        fireTableDataChanged();
+    }
+
     public List<Object[]> getMappingData() {
         return data;
     }

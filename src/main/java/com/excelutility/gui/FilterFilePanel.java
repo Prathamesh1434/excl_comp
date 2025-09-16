@@ -141,7 +141,7 @@ public class FilterFilePanel extends JPanel {
         if (selectedFile == null || getSelectedSheet() == null) {
             return new ArrayList<>();
         }
-        try (Workbook workbook = WorkbookFactory.create(selectedFile, true)) { // Read-only for safety
+        try (Workbook workbook = WorkbookFactory.create(selectedFile)) { // Read-only for safety
             Sheet sheet = workbook.getSheet(getSelectedSheet());
             if (sheet == null) return new ArrayList<>();
 
