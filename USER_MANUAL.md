@@ -31,53 +31,35 @@ This mode allows you to perform a detailed comparison of two Excel files.
 
 ## 3. SPEC QA Recon Mode
 
-This mode allows you to filter one Excel file (the "Data File") using values from another file (the "Filter Values File"). It features a powerful logic builder that allows you to create complex, nested `AND`/`OR` conditions.
+This mode provides a powerful interface for filtering an Excel file based on complex, user-defined rules. The screen is divided into a left-hand control panel and a right-hand data view area, with a main action bar at the bottom.
 
 ### Basic Workflow
 
-1.  **Load Files**:
-    -   In the **"Data File"** panel, click "Browse..." to select the main Excel file you want to filter.
-    -   In the **"Filter Values File"** panel, click "Browse..." to select the Excel file that contains the values you want to use for filtering.
+1.  **Load Files**: At the top of the screen, use the **"Browse..."** buttons to select your main **Data File** and the **Filter Values File**. After selecting a file, choose the correct sheet from the dropdown menu for each.
 
-2.  **Select and Preview Sheets**:
-    -   For each file, select the correct sheet from the dropdown.
-    -   Click the **"Load & Preview Files"** button to load the data into the preview tables.
-    -   Use the **"Preview Search"** box to instantly filter the rows in both preview tables as you type.
+2.  **Preview Data**: Click the **"Load & Preview Files"** button. This will load the data from your selected sheets into the tables in the right-hand panel. You can switch between the **"Data Preview"** and **"Filter Values Preview"** tabs to inspect the data.
 
-3.  **Define Header Rows (If Necessary)**:
-    -   If your files have complex headers, click the **"Detect Header"** button for each file to correctly identify the header rows before creating filters.
+3.  **Define Header Rows (If Necessary)**: If your files have complex, multi-row headers, click the **"Detect Header"** button for each file to ensure the application correctly identifies the column titles before you begin building filters.
 
 4.  **Build Your Filter Logic**:
-    -   The **"Filter Logic Builder"** is where you will construct your filter. It starts with a single "root" group.
-    -   **Adding a Rule**: In the "Filter Values Preview" table, find a cell you want to use and **double-click** it. This will add a new filter rule to the root group. You can also use the **"Add Rule"** button inside any group.
-    -   **Adding a Group**: Click the **"Add Group"** button inside any existing group to create a nested group for more complex logic.
-    -   **Setting Logic**: Each group has its own **AND / OR dropdown**. Use this to control the logic for all the items directly inside that group.
-    -   **Per-Rule Actions**: Each rule has three buttons:
-        -   **View**: See the results for *only this rule* in a new window.
-        -   **Download**: Export the results for *only this rule* to an Excel file.
-        -   **X**: Delete the rule.
+    -   The **"Filter Logic Builder"** on the left is where you will construct your filter. It starts with a single "root" group.
+    -   **Adding a Rule**: In the **"Filter Values Preview"** tab, find a cell containing a value you want to filter by and **double-click** it. This will add a new filter rule to the currently selected group. You can also use the **"Add Rule"** button inside any group.
+    -   **Adding a Group**: Click the **"Add Group"** button inside any existing group to create a nested group for more complex `(A and B) or C` style logic.
+    -   **Setting Logic**: Each group has its own **AND | OR radio buttons**. Use these to control whether all conditions (`AND`) or any condition (`OR`) within that group must be met.
 
-5.  **Analyze and Export Results**:
-    -   **Calculate Total**: Click this to see the final number of records that match your complete logical expression.
-    -   **View Overall Result**: Click this to see the full, combined results in a new window.
-    -   **Download Filtered Results**: Click this to save the final, combined results to an Excel file.
-    -   **Column Selection**: Before any View or Download action, a dialog will appear, allowing you to select which columns you want to include in the output.
+5.  **Run Filters and View Results**:
+    -   Use the **Action Bar** at the bottom of the window to execute your filter.
+    -   **Run Filter**: Click this to run the complete filter expression against your Data File. The results will appear in the **"Results"** tab.
+    -   **Download Results**: Click this to run the filter and save the results directly to an Excel file.
+    -   **Exit**: Closes the application.
 
-### Understanding the Filter Logic Builder
+### Profile Management
 
-The builder lets you create a tree of filter conditions.
+You can save and load your filter configurations using the **File Menu**.
 
-*   **Groups**: A group is a container for other items (rules or other groups). It has a dropdown to set its logic to `AND` or `OR`, and buttons to add new rules or subgroups.
-*   **Rules**: A rule is a single filter condition with its own View, Download, and Delete buttons.
-
-**Example:** To create the filter `(Status is 'Active' AND City is 'Chicago') OR (Name is 'Bob')`, you would:
-1.  In the root group, set the logic to `OR`.
-2.  Click "Add Group" to create a new nested group.
-3.  Inside this new group, set the logic to `AND`.
-4.  Click "Add Rule" inside the `AND` group twice to create the "Status" and "City" rules.
-5.  Go back to the root `OR` group and click "Add Rule" to create the "Name" rule.
-
-[Image of the Filter Logic Builder with new buttons]
+-   **File > Save Profile As...**: Saves the current set of rules and a reference to the selected sheet name. If a profile with the same name exists, a new, versioned file (e.g., `MyProfile-v2.json`) will be created automatically.
+-   **File > Load Profile...**: Opens a dropdown allowing you to select and load a previously saved profile.
+-   **Edit > Manage Profiles...**: Opens a dialog where you can view, load, or delete any of your saved profiles, including different versions.
 
 ---
 *Thank you for using Excel Utility!*

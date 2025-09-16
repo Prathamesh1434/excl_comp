@@ -31,16 +31,6 @@ public class FilterRulePanel extends JPanel implements ExpressionNodeComponent {
         JLabel ruleLabel = new JLabel(rule.getDescriptiveName());
         add(ruleLabel, "growx");
 
-        JButton viewButton = new JButton("View");
-        viewButton.setToolTipText("View matching results for this rule only");
-        viewButton.addActionListener(e -> panelProvider.viewResultsForRule(rule));
-        add(viewButton);
-
-        JButton downloadButton = new JButton("Download");
-        downloadButton.setToolTipText("Download matching results for this rule only");
-        downloadButton.addActionListener(e -> panelProvider.downloadResultsForRule(rule));
-        add(downloadButton);
-
         JButton deleteButton = new JButton("X");
         deleteButton.setToolTipText("Delete this filter rule");
         deleteButton.addActionListener(e -> deleteListener.actionPerformed(
