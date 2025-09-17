@@ -24,7 +24,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
         setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
 
         // The root group cannot be deleted, so its delete listener is null.
-        rootGroup = new LogicalGroupPanel("Root", null);
+        rootGroup = new LogicalGroupPanel("Root", panelProvider, null);
         add(rootGroup, "growx");
 
         // The FilterPanel is now responsible for wiring up all buttons.

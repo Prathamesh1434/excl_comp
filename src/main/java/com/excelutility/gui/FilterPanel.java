@@ -49,6 +49,7 @@ public class FilterPanel extends JPanel {
     private final FilterExpressionBuilderPanel filterExpressionBuilderPanel;
     private final FilteringService filteringService = new FilteringService();
     private final JLabel totalMatchesLabel;
+    private JTabbedPane resultTabs;
 
     private enum ProcessDestination { VIEW, EXPORT, CALCULATE_ONLY }
 
@@ -71,26 +72,12 @@ public class FilterPanel extends JPanel {
         topPanel.add(previewButton, "span, center");
         add(topPanel, BorderLayout.NORTH);
 
-        // --- Main Content Split Pane ---
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setResizeWeight(0.5);
-        add(mainSplit, BorderLayout.CENTER);
+        // --- Main Content Panel ---
+        JPanel mainContentPanel = new JPanel(new MigLayout("fill, insets 5", "[grow, fill]", "[grow 50][grow 50]"));
+        add(mainContentPanel, BorderLayout.CENTER);
 
-        // --- Left Panel (Previews and Builder) ---
-        JPanel leftPanel = new JPanel(new BorderLayout());
-        JSplitPane leftSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplit.setResizeWeight(0.5);
-        leftPanel.add(leftSplit, BorderLayout.CENTER);
-        mainSplit.setLeftComponent(leftPanel);
-
-        // --- Right Panel (Unified Data View Placeholder) ---
-        JPanel unifiedDataViewPlaceholder = new JPanel();
-        unifiedDataViewPlaceholder.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
-        mainSplit.setRightComponent(unifiedDataViewPlaceholder);
-
-        // --- Top part of Left Panel (Previews) ---
-        JSplitPane centerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        centerSplit.setResizeWeight(0.5);
+        // --- Top Row: Previews and Results ---
+        JPanel topContentPanel = new JPanel(new MigLayout("fill, insets 0", "[grow 33][grow 33][grow 34]"));
 
         // Data Preview Table
         dataPreviewModel = new DefaultTableModel();
@@ -98,7 +85,7 @@ public class FilterPanel extends JPanel {
         configureTable(dataPreviewTable);
         JScrollPane dataPreviewScroll = new JScrollPane(dataPreviewTable);
         dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview (First 50 rows)"));
-        centerSplit.setLeftComponent(dataPreviewScroll);
+        topContentPanel.add(dataPreviewScroll, "grow");
 
         // Filter Values Preview Table
         filterValuesPreviewModel = new DefaultTableModel();
@@ -106,15 +93,25 @@ public class FilterPanel extends JPanel {
         configureTable(filterValuesPreviewTable);
         filterValuesPreviewTable.setCellSelectionEnabled(true);
         JScrollPane filterValuesPreviewScroll = new JScrollPane(filterValuesPreviewTable);
-        filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data) - Double-click a cell to create a filter"));
-        centerSplit.setRightComponent(filterValuesPreviewScroll);
+        filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data)"));
+        topContentPanel.add(filterValuesPreviewScroll, "grow");
 
-        leftSplit.setTopComponent(centerSplit);
+        // Unified Data View and other results
+        resultTabs = new JTabbedPane();
+        JPanel unifiedDataViewPlaceholder = new JPanel(new BorderLayout()); // Using BorderLayout to easily add a table later
+        unifiedDataViewPlaceholder.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        resultTabs.addTab("Unified Data View", unifiedDataViewPlaceholder);
+        topContentPanel.add(resultTabs, "grow");
 
-        // --- Bottom part of Left Panel (Builder and Actions) ---
-        JPanel bottomPanel = new JPanel(new MigLayout("fill", "[grow][nogrid]", "[grow]"));
+        mainContentPanel.add(topContentPanel, "grow, wrap");
+
+        // --- Bottom Row: Builder and Actions ---
+        JPanel bottomPanel = new JPanel(new MigLayout("fill", "[grow 70][grow 30]", "[grow]"));
+
         filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
-        bottomPanel.add(filterExpressionBuilderPanel, "grow");
+        JScrollPane builderScrollPane = new JScrollPane(filterExpressionBuilderPanel);
+        builderScrollPane.setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
+        bottomPanel.add(builderScrollPane, "grow");
 
         JPanel actionPanel = new JPanel(new MigLayout("wrap 1", "[grow]"));
         JButton colorButton = new JButton("Set Highlight Color");
@@ -141,6 +138,9 @@ public class FilterPanel extends JPanel {
 
         actionPanel.add(colorButton, "growx, gaptop 10");
 
+        JButton addGroupButton = new JButton("Add Group");
+        actionPanel.add(addGroupButton, "growx, gaptop 10");
+
         JButton calculateButton = new JButton("Calculate Total");
         JButton viewButton = new JButton("View Overall Result");
         totalMatchesLabel = new JLabel("Total Matches: N/A");
@@ -149,9 +149,9 @@ public class FilterPanel extends JPanel {
         actionPanel.add(totalMatchesLabel, "gapleft 10");
 
         actionPanel.add(downloadButton, "growx, gaptop 10");
-        bottomPanel.add(actionPanel);
+        bottomPanel.add(actionPanel, "growy");
 
-        leftSplit.setBottomComponent(bottomPanel);
+        mainContentPanel.add(bottomPanel, "grow");
 
         // Action Listeners
         previewButton.addActionListener(e -> loadPreviews());
@@ -160,6 +160,17 @@ public class FilterPanel extends JPanel {
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
 
+        addGroupButton.addActionListener(e -> {
+            LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
+            ActionListener deleteListener = event -> {
+                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                rootGroup.removeComponent(sourceGroup);
+            };
+            String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, this, deleteListener);
+            configureGroupPanel(newGroup); // Wire up the new group's "Add Rule" button
+            rootGroup.addComponent(newGroup);
+        });
 
         // The listener for creating filters is now attached to the buttons in the builder UI
         configureGroupPanel(filterExpressionBuilderPanel.getRootGroup());
@@ -231,30 +242,13 @@ public class FilterPanel extends JPanel {
     }
 
     /**
-     * Recursively adds action listeners to the buttons of a group panel and its future children.
+     * Adds action listeners to the buttons of a group panel.
      * @param groupPanel The panel whose buttons need to be configured.
      */
     private void configureGroupPanel(LogicalGroupPanel groupPanel) {
         // Configure the "Add Rule" button for this group
         groupPanel.getAddRuleButton().addActionListener(e -> {
             createFilterFromSelection(groupPanel);
-        });
-
-        // Configure the "Add Group" button for this group
-        groupPanel.getAddGroupButton().addActionListener(e -> {
-            // The delete listener for the new subgroup will remove it from its parent (this groupPanel)
-            ActionListener deleteListener = event -> {
-                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
-                groupPanel.removeComponent(sourceGroup);
-            };
-
-            String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener);
-
-            // IMPORTANT: Recursively configure the new group's buttons before adding it
-            configureGroupPanel(newGroup);
-
-            groupPanel.addComponent(newGroup);
         });
     }
 
@@ -314,7 +308,26 @@ public class FilterPanel extends JPanel {
                     List<List<Object>> resultData = projectColumns(filteredData, selectedColumns);
 
                     if (destination == ProcessDestination.VIEW) {
-                        new ResultsViewerDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), "Overall Filter Results", resultData).setVisible(true);
+                        // Display results in the "Unified Data View" tab
+                        JPanel unifiedViewPanel = (JPanel) resultTabs.getComponentAt(0);
+                        unifiedViewPanel.removeAll();
+                        JTable resultTable = new JTable();
+                        configureTable(resultTable);
+                        JScrollPane scrollPane = new JScrollPane(resultTable);
+                        unifiedViewPanel.add(scrollPane, BorderLayout.CENTER);
+
+                        Vector<String> headers = new Vector<>(selectedColumns);
+                        Vector<Vector<Object>> dataVector = new Vector<>();
+                        for (int i = 1; i < resultData.size(); i++) { // Skip header row
+                            dataVector.add(new Vector<>(resultData.get(i)));
+                        }
+                        resultTable.setModel(new DefaultTableModel(dataVector, headers));
+                        adjustColumnWidths(resultTable);
+                        resultTabs.setSelectedIndex(0);
+
+                        unifiedViewPanel.revalidate();
+                        unifiedViewPanel.repaint();
+
                     } else if (destination == ProcessDestination.EXPORT) {
                         promptAndSaveResults(resultData);
                     }
@@ -326,6 +339,105 @@ public class FilterPanel extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    public void previewRule(FilterRulePanel rulePanel) {
+        runPreviewFilter(
+            new com.excelutility.core.expression.RuleNode(rulePanel.getRule()),
+            rulePanel::setRecordCount,
+            rulePanel.getRuleName()
+        );
+    }
+
+    public void previewGroup(LogicalGroupPanel groupPanel) {
+        runPreviewFilter(
+            groupPanel.getExpression(),
+            groupPanel::setRecordCount,
+            groupPanel.getGroupName()
+        );
+    }
+
+    private void runPreviewFilter(FilterExpression expression, java.util.function.Consumer<Integer> countConsumer, String tabTitle) {
+        String dataFilePath = dataFilePanel.getFilePath();
+        String sheetName = dataFilePanel.getSelectedSheet();
+        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
+            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        List<String> allColumns = dataFilePanel.getColumnNames();
+        if (allColumns == null || allColumns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Could not determine columns from data file.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        new SwingWorker<List<List<Object>>, Void>() {
+            @Override
+            protected List<List<Object>> doInBackground() throws Exception {
+                // For previews, we don't need to ask for columns, just show them all.
+                List<List<Object>> filteredData = filteringService.filter(
+                        dataFilePath,
+                        sheetName,
+                        dataFilePanel.getHeaderRowIndices(),
+                        dataFilePanel.getConcatenationMode(),
+                        expression
+                );
+                return projectColumns(filteredData, allColumns); // Project to all columns
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<List<Object>> resultData = get();
+                    int recordCount = resultData.isEmpty() ? 0 : resultData.size() - 1;
+                    countConsumer.accept(recordCount);
+                    if (recordCount > 0) {
+                        addPreviewTab(tabTitle, resultData);
+                    } else {
+                        JOptionPane.showMessageDialog(FilterPanel.this, "No records match the preview criteria.", "No Matches", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    logger.error("Preview filtering process failed.", e);
+                    countConsumer.accept(-1); // Indicate error
+                    JOptionPane.showMessageDialog(FilterPanel.this, "Failed to apply preview filter: " + e.getCause().getMessage(), "Filtering Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void addPreviewTab(String title, List<List<Object>> data) {
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        JTable table = new JTable();
+        configureTable(table);
+        JScrollPane scrollPane = new JScrollPane(table);
+        contentPanel.add(scrollPane, BorderLayout.CENTER);
+
+        if (!data.isEmpty()) {
+            Vector<String> headers = data.get(0).stream().map(Object::toString).collect(Collectors.toCollection(Vector::new));
+            Vector<Vector<Object>> dataVector = new Vector<>();
+            for (int i = 1; i < data.size(); i++) {
+                dataVector.add(new Vector<>(data.get(i)));
+            }
+            table.setModel(new DefaultTableModel(dataVector, headers));
+            adjustColumnWidths(table);
+        }
+
+        // Create a panel for the tab component (with a close button)
+        JPanel tabComponent = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        tabComponent.setOpaque(false);
+        JLabel tabLabel = new JLabel(title + " ");
+        JButton closeButton = new JButton("x");
+        closeButton.setMargin(new Insets(0, 2, 0, 2));
+        closeButton.setToolTipText("Close this tab");
+
+        tabComponent.add(tabLabel);
+        tabComponent.add(closeButton);
+
+        int tabIndex = resultTabs.getTabCount();
+        resultTabs.insertTab(title, null, contentPanel, "Preview for " + title, tabIndex);
+        resultTabs.setTabComponentAt(tabIndex, tabComponent);
+        resultTabs.setSelectedIndex(tabIndex);
+
+        closeButton.addActionListener(e -> resultTabs.remove(contentPanel));
     }
 
     private void promptAndSaveResults(List<List<Object>> filteredData) {
@@ -612,7 +724,7 @@ public class FilterPanel extends JPanel {
 
     private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
         uiGroup.setGroupName(dataNode.getName());
-        uiGroup.setOperator(dataNode.getOperator());
+        // setOperator is no longer needed
 
         for (FilterExpression childNode : dataNode.getChildren()) {
             if (childNode instanceof com.excelutility.core.expression.RuleNode) {
@@ -626,7 +738,7 @@ public class FilterPanel extends JPanel {
                     uiGroup.removeComponent(sourceGroup);
                 };
 
-                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener);
+                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), this, deleteListener);
                 configureGroupPanel(newUiGroup); // Make sure the new group's buttons are wired up
                 uiGroup.addComponent(newUiGroup);
 
