@@ -157,7 +157,21 @@ public class ExcelReader {
                     if (sheetName.equalsIgnoreCase(iter.getSheetName())) {
                         InputSource sheetSource = new InputSource(stream);
                         parser.parse(sheetSource);
-                        return handler.getSheetData();
+                        List<List<Object>> sheetData = handler.getSheetData();
+
+                        // Normalize rows to have the same number of columns
+                        int maxCols = 0;
+                        for (List<Object> row : sheetData) {
+                            if (row.size() > maxCols) {
+                                maxCols = row.size();
+                            }
+                        }
+                        for (List<Object> row : sheetData) {
+                            while (row.size() < maxCols) {
+                                row.add("");
+                            }
+                        }
+                        return sheetData;
                     }
                 }
             }
