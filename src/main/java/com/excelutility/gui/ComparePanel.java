@@ -17,6 +17,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 import java.util.stream.Collectors;
 
@@ -59,11 +60,12 @@ public class ComparePanel extends JPanel {
 
         // --- Center Split Pane ---
         JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        centerSplit.setResizeWeight(0.4);
+        centerSplit.setResizeWeight(0.5);
 
         // --- Top part of Center Split: Mappings and Previews ---
         columnMappingPanel = new ColumnMappingPanel();
 
+        // Preview Panels
         sourcePreviewModel = new DefaultTableModel();
         JTable sourcePreviewTable = new JTable(sourcePreviewModel);
         JScrollPane sourcePreviewScroll = new JScrollPane(sourcePreviewTable);
@@ -78,7 +80,7 @@ public class ComparePanel extends JPanel {
         previewSplit.setResizeWeight(0.5);
 
         JSplitPane topSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, columnMappingPanel, previewSplit);
-        topSplit.setResizeWeight(0.4);
+        topSplit.setResizeWeight(0.5);
 
         // --- Bottom part of Center Split: Results Table ---
         resultsTableModel = new ResultTableModel();
@@ -167,11 +169,6 @@ public class ComparePanel extends JPanel {
         return menuBar;
     }
 
-    private void openProfileManager() {
-        ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
-        dialog.setVisible(true);
-    }
-
     private void loadHeaders(boolean isSource) {
         FileConfigPanel panel = isSource ? sourceFilePanel : targetFilePanel;
         String filePath = panel.getFilePath();
@@ -186,6 +183,9 @@ public class ComparePanel extends JPanel {
             if (sheet == null) return;
 
             List<Integer> headerRows = panel.getHeaderRowIndices();
+            if (headerRows == null || headerRows.isEmpty()) {
+                headerRows = java.util.Collections.singletonList(0);
+            }
 
             List<String> canonicalHeaders = com.excelutility.core.CanonicalNameBuilder.buildCanonicalHeaders(
                 sheet, headerRows, panel.getConcatenationMode(), " | ");
@@ -223,7 +223,7 @@ public class ComparePanel extends JPanel {
 
     private void runComparison() {
         if (!validateGuiBeforeRun()) {
-            return;
+            return; // Stop if validation fails
         }
 
         updateProfileFromGui();
@@ -312,6 +312,11 @@ public class ComparePanel extends JPanel {
 
     private void openTestCaseGenerator() {
         TestCaseGeneratorDialog dialog = new TestCaseGeneratorDialog((Frame) SwingUtilities.getWindowAncestor(this));
+        dialog.setVisible(true);
+    }
+
+    private void openProfileManager() {
+        ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
         dialog.setVisible(true);
     }
 

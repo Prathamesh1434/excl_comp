@@ -1,6 +1,21 @@
 package com.excelutility.io;
 
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.eventusermodel.XSSFReader;
+import org.apache.poi.xssf.model.SharedStringsTable;
+import org.apache.poi.xssf.usermodel.XSSFRichTextString;
+import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.xml.sax.Attributes;
+import org.xml.sax.ContentHandler;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.DefaultHandler;
+import org.xml.sax.helpers.XMLReaderFactory;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+
+
+import java.io.InputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -8,24 +23,70 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reads data from an Excel file.
- * The streaming logic has been removed in favor of the more robust in-memory reader
- * to ensure correctness and prevent data misalignment issues with empty cells.
+ * Reads data from an Excel file, with support for streaming large XLSX files.
  */
 public class ExcelReader {
 
-    /**
-     * Reads the data from a specified sheet in an Excel file.
-     *
-     * @param filePath     The path to the Excel file.
-     * @param sheetName    The name of the sheet to read.
-     * @param useStreaming This parameter is now ignored. The robust in-memory reader is always used.
-     * @return A list of lists representing the rows and cells of the sheet.
-     * @throws IOException if an I/O error occurs.
-     */
-    public static List<List<Object>> read(String filePath, String sheetName, boolean useStreaming) throws IOException {
-        // Always use the robust in-memory reader to guarantee data integrity.
-        return readInMemory(filePath, sheetName);
+    // For streaming .xlsx files
+    private static class SheetHandler extends DefaultHandler {
+        private final SharedStringsTable sst;
+        private String lastContents;
+        private boolean nextIsString;
+        private List<String> currentRow = new ArrayList<>();
+        private final List<List<String>> sheetData = new ArrayList<>();
+
+        SheetHandler(SharedStringsTable sst) {
+            this.sst = sst;
+        }
+
+        public List<List<String>> getSheetData() {
+            return sheetData;
+        }
+
+        public void startElement(String uri, String localName, String name, Attributes attributes) throws SAXException {
+            if (name.equals("c")) { // cell
+                String cellType = attributes.getValue("t");
+                if (cellType != null && cellType.equals("s")) {
+                    nextIsString = true;
+                } else {
+                    nextIsString = false;
+                }
+            }
+            lastContents = "";
+        }
+
+        public void endElement(String uri, String localName, String name) throws SAXException {
+            if (nextIsString) {
+                int idx = Integer.parseInt(lastContents);
+                lastContents = new XSSFRichTextString(sst.getItemAt(idx).getString()).toString();
+                nextIsString = false;
+            }
+
+            if (name.equals("v")) { // value
+                currentRow.add(lastContents);
+            } else if (name.equals("row")) { // end of a row
+                sheetData.add(new ArrayList<>(currentRow));
+                currentRow.clear();
+            }
+        }
+
+        public void characters(char[] ch, int start, int length) throws SAXException {
+            lastContents += new String(ch, start, length);
+        }
+    }
+
+    public static List<List<Object>> read(String filePath, String sheetName, boolean useStreaming) throws IOException, InvalidFormatException {
+        if (useStreaming && filePath.toLowerCase().endsWith(".xlsx")) {
+            try {
+                // Note: Streaming read might not preserve blank cells perfectly depending on implementation.
+                // The current implementation is basic. A more robust one would handle cell references ('r' attribute).
+                return readStream(filePath, sheetName);
+            } catch (Exception e) {
+                throw new IOException("Streaming read failed", e);
+            }
+        } else {
+            return readInMemory(filePath, sheetName);
+        }
     }
 
     private static List<List<Object>> readInMemory(String filePath, String sheetName) throws IOException {
@@ -36,12 +97,9 @@ public class ExcelReader {
                 throw new IllegalArgumentException("Sheet '" + sheetName + "' not found in the workbook.");
             }
             DataFormatter dataFormatter = new DataFormatter();
-
             int maxCols = 0;
             for (Row row : sheet) {
-                if (row.getLastCellNum() > maxCols) {
-                    maxCols = row.getLastCellNum();
-                }
+                maxCols = Math.max(maxCols, row.getLastCellNum());
             }
 
             for (Row row : sheet) {
@@ -58,6 +116,34 @@ public class ExcelReader {
             }
         }
         return data;
+    }
+
+    private static List<List<Object>> readStream(String filePath, String sheetName) throws Exception {
+        try (OPCPackage pkg = OPCPackage.open(filePath)) {
+            XSSFReader r = new XSSFReader(pkg);
+            SharedStringsTable sst = (SharedStringsTable) r.getSharedStringsTable();
+            XMLReader parser = XMLReaderFactory.createXMLReader();
+            SheetHandler handler = new SheetHandler(sst);
+            parser.setContentHandler(handler);
+
+            XSSFReader.SheetIterator iter = (XSSFReader.SheetIterator) r.getSheetsData();
+            while (iter.hasNext()) {
+                try (InputStream stream = iter.next()) {
+                    if (sheetName.equalsIgnoreCase(iter.getSheetName())) {
+                        InputSource sheetSource = new InputSource(stream);
+                        parser.parse(sheetSource);
+                        // The streaming API gives us strings, so we convert to List<List<Object>>
+                        List<List<String>> stringData = handler.getSheetData();
+                        List<List<Object>> objectData = new ArrayList<>();
+                        for (List<String> row : stringData) {
+                            objectData.add(new ArrayList<>(row));
+                        }
+                        return objectData;
+                    }
+                }
+            }
+        }
+        throw new IllegalArgumentException("Sheet '" + sheetName + "' not found in the workbook.");
     }
 
     public static List<String> getSheetNames(String filePath) throws IOException {
@@ -80,16 +166,18 @@ public class ExcelReader {
             }
 
             int lastRow = Math.min(sheet.getLastRowNum(), rowLimit - 1);
-            if (lastRow < 0) return data;
+            if (lastRow < 0) return data; // Empty sheet
 
             int maxCols = 0;
+            // First pass to find the max number of columns in the preview range
             for (int i = 0; i <= lastRow; i++) {
                 Row row = sheet.getRow(i);
-                if (row != null && row.getLastCellNum() > maxCols) {
-                    maxCols = row.getLastCellNum();
+                if (row != null) {
+                    maxCols = Math.max(maxCols, row.getLastCellNum());
                 }
             }
 
+            // Second pass to read data
             for (int i = 0; i <= lastRow; i++) {
                 Row row = sheet.getRow(i);
                 List<Object> rowData = new ArrayList<>();

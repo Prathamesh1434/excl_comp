@@ -2,7 +2,6 @@ package com.excelutility.gui;
 
 import com.excelutility.core.ConcatenationMode;
 import com.excelutility.core.HeaderDetector;
-import net.miginfocom.swing.MigLayout;
 import org.apache.poi.ss.usermodel.Sheet;
 import javax.swing.*;
 import java.awt.*;
@@ -20,8 +19,6 @@ public class HeaderDetectionDialog extends JDialog {
         setSize(800, 600);
         setLocationRelativeTo(owner);
         setLayout(new BorderLayout(10, 10));
-        ((JPanel)getContentPane()).setBorder(UIConstants.BORDER_EMPTY_10);
-
 
         // --- Detection Logic ---
         HeaderDetector detector = new HeaderDetector();
@@ -29,13 +26,14 @@ public class HeaderDetectionDialog extends JDialog {
         List<Integer> detectedRows = result.getDetectedHeaderRows();
 
         // --- Main Panel ---
-        JPanel mainPanel = new JPanel(new MigLayout("wrap 1, fillx"));
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         int rowsToScan = Math.min(20, sheet.getLastRowNum() + 1);
         for (int i = 0; i < rowsToScan; i++) {
-            JPanel rowPanel = new JPanel(new MigLayout("insets 0", "[][]"));
+            JPanel rowPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
             JCheckBox checkBox = new JCheckBox("Row " + (i + 1));
-            checkBox.setFont(UIConstants.FONT_BODY);
             checkBox.setSelected(detectedRows.contains(i));
             rowCheckBoxes.add(checkBox);
             rowPanel.add(checkBox);
@@ -44,11 +42,7 @@ public class HeaderDetectionDialog extends JDialog {
             result.getConfidenceScores().stream()
                 .filter(r -> r.getRowIndex() == currentRowIndex)
                 .findFirst()
-                .ifPresent(r -> {
-                    JLabel confidenceLabel = new JLabel(String.format("(Confidence: %.2f, Reason: %s)", r.getScore(), r.getReason()));
-                    confidenceLabel.setFont(UIConstants.FONT_LABEL);
-                    rowPanel.add(confidenceLabel, "gapleft 20");
-                });
+                .ifPresent(r -> rowPanel.add(new JLabel(String.format("(Confidence: %.2f, Reason: %s)", r.getScore(), r.getReason()))));
 
             mainPanel.add(rowPanel);
         }
@@ -56,23 +50,18 @@ public class HeaderDetectionDialog extends JDialog {
         add(new JScrollPane(mainPanel), BorderLayout.CENTER);
 
         // --- Top Panel for Mode Selection ---
-        JPanel topPanel = new JPanel(new MigLayout("insets 0"));
-        JLabel modeLabel = new JLabel("Header Concatenation Mode:");
-        modeLabel.setFont(UIConstants.FONT_LABEL.deriveFont(Font.BOLD));
-        topPanel.add(modeLabel);
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topPanel.add(new JLabel("Header Concatenation Mode:"));
         modeCombo = new JComboBox<>(ConcatenationMode.values());
-        modeCombo.setFont(UIConstants.FONT_LABEL);
-        topPanel.add(modeCombo, "gapleft 10");
+        topPanel.add(modeCombo);
         add(topPanel, BorderLayout.NORTH);
 
         // --- Bottom Panel ---
-        JPanel bottomPanel = new JPanel(new MigLayout("fillx, insets 5 0 0 0", "push[][]"));
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton okButton = new JButton("OK");
-        okButton.setFont(UIConstants.FONT_BUTTON);
         JButton cancelButton = new JButton("Cancel");
-        cancelButton.setFont(UIConstants.FONT_BUTTON);
-        bottomPanel.add(okButton, "sg btn, w 100!");
-        bottomPanel.add(cancelButton, "sg btn, w 100!");
+        bottomPanel.add(okButton);
+        bottomPanel.add(cancelButton);
         add(bottomPanel, BorderLayout.SOUTH);
 
         // --- Listeners ---
