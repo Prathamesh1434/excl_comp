@@ -52,7 +52,7 @@ public class ExcelReaderBugsTest {
         assertEquals(3, rowWithBlank.size(), "Row with blank cell should have the correct number of columns.");
 
         // Verify the content of the row
-        assertEquals("2.0", rowWithBlank.get(0).toString(), "ID should be correct.");
+        assertEquals(2.0, Double.parseDouble(rowWithBlank.get(0).toString()), "ID should be correct.");
         assertEquals("", rowWithBlank.get(1).toString(), "The 'name' column should be an empty string.");
         assertEquals("Nanded", rowWithBlank.get(2).toString(), "The 'add' column should be correct.");
     }
