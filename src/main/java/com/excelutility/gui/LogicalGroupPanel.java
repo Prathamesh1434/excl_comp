@@ -63,7 +63,7 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         setBackground(new Color(220, 235, 255)); // Light Blue
 
         // Top bar for group controls
-        JPanel topBar = new JPanel(new MigLayout("insets 2", "[grow]rel[auto]rel[auto]push[auto]rel[auto]"));
+        JPanel topBar = new JPanel(new MigLayout("insets 2", "[grow]rel[]rel[]push[]rel[]"));
         topBar.setBackground(getBackground());
 
         groupNameField = new JTextField(initialName);
