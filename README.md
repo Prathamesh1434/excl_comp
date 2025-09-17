@@ -19,7 +19,7 @@ This mode allows you to perform a detailed comparison of two Excel files.
 -   **Profile Management**: Save and load complex comparison configurations.
 -   **Large File Support**: Includes a streaming mode to handle large `.xlsx` files efficiently.
 
-### 2. Filter Excel Data (New)
+### 2. Spec QA Recon (New)
 
 This mode allows you to filter one Excel file based on a list of values or entire columns from another Excel file.
 

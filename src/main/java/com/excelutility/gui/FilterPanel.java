@@ -133,6 +133,34 @@ public class FilterPanel extends JPanel {
                 }
             }
         });
+
+        // Configure the root panel's buttons
+        configureGroupPanel(filterExpressionBuilderPanel.getRootGroup());
+    }
+
+    private void configureGroupPanel(LogicalGroupPanel groupPanel) {
+        groupPanel.getAddRuleButton().addActionListener(e -> {
+            createFilterFromSelection(groupPanel);
+        });
+
+        groupPanel.getAddGroupButton().addActionListener(e -> {
+            ActionListener deleteListener = event -> {
+                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                groupPanel.removeComponent(sourceGroup);
+                groupPanel.revalidate();
+                groupPanel.repaint();
+            };
+
+            String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener);
+
+            // Recursively configure the new group's buttons before adding it
+            configureGroupPanel(newGroup);
+
+            groupPanel.addComponent(newGroup);
+            groupPanel.revalidate();
+            groupPanel.repaint();
+        });
     }
 
     private JPanel createTitledPanel(String title, JComponent component) {

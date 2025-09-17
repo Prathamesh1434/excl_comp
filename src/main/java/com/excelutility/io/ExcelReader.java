@@ -32,25 +32,52 @@ public class ExcelReader {
         private final SharedStringsTable sst;
         private String lastContents;
         private boolean nextIsString;
-        private List<String> currentRow = new ArrayList<>();
-        private final List<List<String>> sheetData = new ArrayList<>();
+        private List<Object> currentRow = new ArrayList<>();
+        private final List<List<Object>> sheetData = new ArrayList<>();
+        private int currentCol = -1;
+        private int lastRowIndex = -1;
 
         SheetHandler(SharedStringsTable sst) {
             this.sst = sst;
         }
 
-        public List<List<String>> getSheetData() {
+        public List<List<Object>> getSheetData() {
             return sheetData;
         }
 
+        private int getColumnIndex(String cellReference) {
+            if (cellReference == null) return -1;
+            String col = cellReference.replaceAll("\\d", "");
+            int index = 0;
+            for (int i = 0; i < col.length(); i++) {
+                index = index * 26 + (col.charAt(i) - 'A' + 1);
+            }
+            return index - 1;
+        }
+
         public void startElement(String uri, String localName, String name, Attributes attributes) throws SAXException {
-            if (name.equals("c")) { // cell
-                String cellType = attributes.getValue("t");
-                if (cellType != null && cellType.equals("s")) {
-                    nextIsString = true;
-                } else {
-                    nextIsString = false;
+            if (name.equals("row")) {
+                int rowIndex = Integer.parseInt(attributes.getValue("r")) - 1;
+                // Handle empty rows between the last row and the current one
+                for (int i = lastRowIndex + 1; i < rowIndex; i++) {
+                    sheetData.add(new ArrayList<>());
                 }
+                lastRowIndex = rowIndex;
+                currentCol = -1;
+            }
+
+            if (name.equals("c")) { // cell
+                String cellReference = attributes.getValue("r");
+                int thisCol = getColumnIndex(cellReference);
+
+                // Add empty cells for any skipped columns
+                for (int i = currentCol + 1; i < thisCol; i++) {
+                    currentRow.add("");
+                }
+                currentCol = thisCol;
+
+                String cellType = attributes.getValue("t");
+                nextIsString = (cellType != null && cellType.equals("s"));
             }
             lastContents = "";
         }
@@ -78,8 +105,6 @@ public class ExcelReader {
     public static List<List<Object>> read(String filePath, String sheetName, boolean useStreaming) throws IOException, InvalidFormatException {
         if (useStreaming && filePath.toLowerCase().endsWith(".xlsx")) {
             try {
-                // Note: Streaming read might not preserve blank cells perfectly depending on implementation.
-                // The current implementation is basic. A more robust one would handle cell references ('r' attribute).
                 return readStream(filePath, sheetName);
             } catch (Exception e) {
                 throw new IOException("Streaming read failed", e);
@@ -132,13 +157,7 @@ public class ExcelReader {
                     if (sheetName.equalsIgnoreCase(iter.getSheetName())) {
                         InputSource sheetSource = new InputSource(stream);
                         parser.parse(sheetSource);
-                        // The streaming API gives us strings, so we convert to List<List<Object>>
-                        List<List<String>> stringData = handler.getSheetData();
-                        List<List<Object>> objectData = new ArrayList<>();
-                        for (List<String> row : stringData) {
-                            objectData.add(new ArrayList<>(row));
-                        }
-                        return objectData;
+                        return handler.getSheetData();
                     }
                 }
             }
@@ -169,7 +188,6 @@ public class ExcelReader {
             if (lastRow < 0) return data; // Empty sheet
 
             int maxCols = 0;
-            // First pass to find the max number of columns in the preview range
             for (int i = 0; i <= lastRow; i++) {
                 Row row = sheet.getRow(i);
                 if (row != null) {
@@ -177,7 +195,6 @@ public class ExcelReader {
                 }
             }
 
-            // Second pass to read data
             for (int i = 0; i <= lastRow; i++) {
                 Row row = sheet.getRow(i);
                 List<Object> rowData = new ArrayList<>();
