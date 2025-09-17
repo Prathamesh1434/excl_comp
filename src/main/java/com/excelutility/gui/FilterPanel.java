@@ -424,6 +424,28 @@ public class FilterPanel extends JPanel {
     }
 
     private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
-        // Logic to rebuild UI from a loaded profile
+        uiGroup.setGroupName(dataNode.getName());
+        uiGroup.setOperator(dataNode.getOperator());
+
+        for (FilterExpression childNode : dataNode.getChildren()) {
+            if (childNode instanceof com.excelutility.core.expression.RuleNode) {
+                com.excelutility.core.expression.RuleNode ruleNode = (com.excelutility.core.expression.RuleNode) childNode;
+                filterExpressionBuilderPanel.addRuleToGroup(uiGroup, ruleNode.getRule());
+            } else if (childNode instanceof com.excelutility.core.expression.GroupNode) {
+                com.excelutility.core.expression.GroupNode childGroupNode = (com.excelutility.core.expression.GroupNode) childNode;
+
+                ActionListener deleteListener = event -> {
+                    LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                    uiGroup.removeComponent(sourceGroup);
+                };
+
+                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener);
+                // configureGroupPanel(newUiGroup); // This would be ideal, but requires bigger refactoring
+                uiGroup.addComponent(newUiGroup);
+
+                // Recurse
+                populateGroupFromNode(newUiGroup, childGroupNode);
+            }
+        }
     }
 }

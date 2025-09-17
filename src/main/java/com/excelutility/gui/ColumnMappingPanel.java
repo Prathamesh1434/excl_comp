@@ -71,7 +71,6 @@ public class ColumnMappingPanel extends JPanel {
         add(buttonPanel, "span, growx, gaptop 10");
 
         clearIgnoresButton.addActionListener(e -> clearAllIgnores());
-        autoMapButton.addActionListener(e -> tableModel.autoMapByName());
     }
 
     public void setColumns(List<String> sourceCols, List<String> targetCols) {
