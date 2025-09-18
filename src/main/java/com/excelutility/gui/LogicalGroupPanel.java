@@ -3,14 +3,12 @@ package com.excelutility.gui;
 import com.excelutility.core.FilteringService;
 import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.core.expression.GroupNode;
-import com.excelutility.core.expression.RuleNode;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,10 +20,9 @@ import java.util.stream.Collectors;
 public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent {
 
     private final JTextField groupNameField;
-    private final JLabel recordCountLabel;
     private final JPanel contentPanel;
     private final JButton addRuleButton;
-    private final FilterPanel panelProvider;
+    private final JLabel recordCountLabel;
 
     /**
      * A panel for the AND/OR radio buttons between components.
@@ -55,34 +52,33 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         }
     }
 
-    public LogicalGroupPanel(String initialName, FilterPanel panelProvider, ActionListener deleteListener) {
+    public LogicalGroupPanel(String initialName, ActionListener deleteListener) {
         // Main panel setup
-        super(new MigLayout("insets 5, fillx, wrap 1", "[grow]"));
-        this.panelProvider = panelProvider;
-        setBorder(BorderFactory.createLineBorder(Color.GRAY));
-        setBackground(new Color(220, 235, 255)); // Light Blue
+        super(new MigLayout("insets 0, fillx, wrap 1", "[grow]"));
+        setBorder(BorderFactory.createTitledBorder(initialName));
+        // A light blue background for the group header area can be achieved by styling the topBar
+        setBackground(Color.WHITE);
 
         // Top bar for group controls
-        JPanel topBar = new JPanel(new MigLayout("insets 2", "[grow]rel[]rel[]push[]rel[]"));
-        topBar.setBackground(getBackground());
+        JPanel topBar = new JPanel(new MigLayout("insets 2 5 2 5, fillx", "[grow]push[]"));
+        topBar.setBackground(new Color(220, 235, 255)); // Light Blue
 
         groupNameField = new JTextField(initialName);
-        topBar.add(groupNameField, "growx, wmin 150");
+        groupNameField.setBorder(null);
+        groupNameField.setBackground(topBar.getBackground());
+        topBar.add(groupNameField, "growx, wmin 100");
 
         recordCountLabel = new JLabel("(N/A)");
         recordCountLabel.setFont(recordCountLabel.getFont().deriveFont(Font.BOLD));
-        topBar.add(recordCountLabel);
-
-        JButton previewButton = new JButton("Preview");
-        previewButton.setToolTipText("Preview results for this entire group in a new tab");
-        previewButton.addActionListener(e -> panelProvider.previewGroup(this));
-        topBar.add(previewButton);
+        topBar.add(recordCountLabel, "gapleft 10");
 
         addRuleButton = new JButton("Add Rule");
-        topBar.add(addRuleButton, "gapleft 20");
+        topBar.add(addRuleButton);
 
         if (deleteListener != null) {
-            JButton deleteGroupButton = new JButton("Delete Group");
+            JButton deleteGroupButton = new JButton("X");
+            deleteGroupButton.setToolTipText("Delete this group");
+            deleteGroupButton.setMargin(new Insets(1, 1, 1, 1));
             deleteGroupButton.addActionListener(e -> deleteListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null)));
             topBar.add(deleteGroupButton);
         }
@@ -90,9 +86,17 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         add(topBar, "growx");
 
         // Content panel for rules and subgroups
-        contentPanel = new JPanel(new MigLayout("insets 5 0 0 0, fillx, wrap 1", "[grow]"));
-        contentPanel.setOpaque(false);
-        add(contentPanel, "growx, gaptop 5");
+        contentPanel = new JPanel(new MigLayout("insets 5 10 5 10, fillx, wrap 1", "[grow]")); // Indented content
+        add(contentPanel, "growx");
+    }
+
+    @Override
+    public void setBorder(javax.swing.border.Border border) {
+        // To handle the groupNameField also being part of the border
+        if (groupNameField != null && border instanceof javax.swing.border.TitledBorder) {
+            groupNameField.setText(((javax.swing.border.TitledBorder) border).getTitle());
+        }
+        super.setBorder(border);
     }
 
     public void addComponent(Component component) {
@@ -154,9 +158,11 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
                 .collect(Collectors.toList());
 
         if (expressions.isEmpty()) {
-            return new GroupNode(FilteringService.LogicalOperator.AND, getGroupName()); // Return an empty, valid group
+            return new GroupNode(FilteringService.LogicalOperator.AND, groupNameField.getText()); // Return an empty, valid group
         }
         if (expressions.size() == 1) {
+            // If there is only one expression, we don't need to wrap it in a group node for evaluation,
+            // but we might lose the group's name. For filtering, this is fine.
             return expressions.get(0);
         }
 
@@ -165,38 +171,34 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         for (int i = 0; i < operators.size(); i++) {
             FilteringService.LogicalOperator op = operators.get(i);
             FilterExpression rightOperand = expressions.get(i + 1);
+            // The name "Sub-expression" is temporary for unnamed intermediate nodes
             GroupNode newNode = new GroupNode(op, "Sub-expression");
             newNode.addChild(leftOperand);
             newNode.addChild(rightOperand);
             leftOperand = newNode;
         }
 
-        // Wrap the final result in a named group node
-        GroupNode rootGroup = new GroupNode(FilteringService.LogicalOperator.AND, getGroupName());
+        // Wrap the final result in a named group node so the group's name is preserved
+        GroupNode rootGroup = new GroupNode(FilteringService.LogicalOperator.AND, groupNameField.getText());
         rootGroup.addChild(leftOperand);
         return rootGroup;
-    }
-
-    public String getGroupName() {
-        return groupNameField.getText();
-    }
-
-    public void setGroupName(String name) {
-        groupNameField.setText(name);
-    }
-
-    public void setRecordCount(int count) {
-        recordCountLabel.setText("(" + count + ")");
-        if (count == 0) {
-            recordCountLabel.setForeground(Color.RED);
-        } else {
-            recordCountLabel.setForeground(new Color(0, 153, 0)); // Dark Green
-        }
     }
 
     public JButton getAddRuleButton() {
         return addRuleButton;
     }
 
-    // setOperator and getAddGroupButton are no longer needed.
+    public void setRecordCount(int count) {
+        if (count < 0) {
+            recordCountLabel.setText("(Error)");
+            recordCountLabel.setForeground(Color.ORANGE);
+        } else {
+            recordCountLabel.setText("(" + count + ")");
+            if (count == 0) {
+                recordCountLabel.setForeground(Color.RED);
+            } else {
+                recordCountLabel.setForeground(new Color(0, 153, 0)); // Dark Green
+            }
+        }
+    }
 }

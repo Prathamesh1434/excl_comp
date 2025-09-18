@@ -31,7 +31,15 @@ public class GroupNode implements FilterExpression {
         return operator;
     }
 
+    @Override
     public String getName() {
+        return name;
+    }
+
+    @Override
+    public String getDescriptiveName() {
+        // For a group, the name is descriptive enough.
+        // A more complex implementation could show child expressions.
         return name;
     }
 

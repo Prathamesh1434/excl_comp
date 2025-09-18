@@ -28,4 +28,14 @@ public interface FilterExpression {
      * @return True if the row matches the expression, false otherwise.
      */
     boolean evaluate(List<Object> row, List<String> header, FilteringService service);
+
+    /**
+     * @return The user-defined or auto-generated name of the node.
+     */
+    String getName();
+
+    /**
+     * @return A descriptive name for the expression, for logging and display.
+     */
+    String getDescriptiveName();
 }

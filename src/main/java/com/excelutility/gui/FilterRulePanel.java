@@ -1,6 +1,5 @@
 package com.excelutility.gui;
 
-import com.excelutility.core.AutoNamingService;
 import com.excelutility.core.FilterRule;
 import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.core.expression.RuleNode;
@@ -13,50 +12,40 @@ import java.awt.event.ActionListener;
 
 /**
  * A panel that displays a single filter rule and provides actions for it.
- * This has been updated for the new GUI design.
  */
 public class FilterRulePanel extends JPanel implements ExpressionNodeComponent {
 
     private final FilterRule rule;
     private final JTextField ruleNameField;
     private final JLabel recordCountLabel;
-    private final JButton previewButton;
 
-    /**
-     * Constructs a panel for a given filter rule.
-     *
-     * @param rule           The {@link FilterRule} to display.
-     * @param panelProvider  A reference to the main FilterPanel to call back to for actions.
-     * @param deleteListener The {@link ActionListener} to be invoked when the delete button is clicked.
-     */
-    public FilterRulePanel(FilterRule rule, FilterPanel panelProvider, ActionListener deleteListener) {
+    public FilterRulePanel(String name, FilterRule rule, ActionListener deleteListener) {
         this.rule = rule;
-        // Using a more detailed layout for alignment
-        setLayout(new MigLayout("insets 5, fillx", "[grow]rel[auto]rel[auto]rel[auto]"));
-        setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
-                BorderFactory.createEmptyBorder(2, 5, 2, 5)
-        ));
+        setLayout(new MigLayout("insets 2 5 2 5, fillx", "[grow]rel[]rel[]rel[]"));
+        setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(224, 224, 224))); // Light gray separator
         setBackground(Color.WHITE);
 
-        ruleNameField = new JTextField(AutoNamingService.suggestRuleName());
-        add(ruleNameField, "growx, wmin 100");
+        ruleNameField = new JTextField(name);
+        ruleNameField.setBorder(null);
+        add(ruleNameField, "growx, wmin 80");
 
         JLabel ruleLabel = new JLabel(rule.getDescriptiveName());
         ruleLabel.setForeground(Color.DARK_GRAY);
-        add(ruleLabel, "growx, gapleft 10");
+        add(ruleLabel, "gapleft 10, growx");
 
         recordCountLabel = new JLabel("(N/A)");
         recordCountLabel.setFont(recordCountLabel.getFont().deriveFont(Font.BOLD));
         add(recordCountLabel, "gapleft 10");
 
-        previewButton = new JButton("Preview");
+        JButton previewButton = new JButton("Preview");
         previewButton.setToolTipText("Preview matching results for this rule in a new tab");
-        previewButton.addActionListener(e -> panelProvider.previewRule(this));
-        add(previewButton);
+        // The action listener will be attached in FilterPanel to call the preview logic
+        // This is left to the parent container to wire up.
+        add(previewButton, "hidemode 3"); // Hide if not used, but we will use it.
 
         JButton deleteButton = new JButton("X");
         deleteButton.setToolTipText("Delete this filter rule");
+        deleteButton.setMargin(new Insets(1, 1, 1, 1));
         deleteButton.addActionListener(e -> deleteListener.actionPerformed(
                 new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null)
         ));
@@ -80,10 +69,21 @@ public class FilterRulePanel extends JPanel implements ExpressionNodeComponent {
         }
     }
 
+    // A way for the parent to get the preview button and attach a listener.
+    public JButton getPreviewButton() {
+        // Search for the button by its text, as it's a direct child.
+        for (Component comp : getComponents()) {
+            if (comp instanceof JButton && "Preview".equals(((JButton) comp).getText())) {
+                return (JButton) comp;
+            }
+        }
+        return null; // Should not happen
+    }
+
     @Override
     public FilterExpression getExpression() {
-        // The RuleNode currently doesn't store the name, but the expression tree
-        // doesn't need it for evaluation. The name is for UI purposes.
-        return new RuleNode(this.rule);
+        RuleNode node = new RuleNode(this.rule);
+        node.setName(getRuleName());
+        return node;
     }
 }

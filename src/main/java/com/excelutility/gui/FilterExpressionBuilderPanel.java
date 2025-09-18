@@ -24,7 +24,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
         setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
 
         // The root group cannot be deleted, so its delete listener is null.
-        rootGroup = new LogicalGroupPanel("Root", panelProvider, null);
+        rootGroup = new LogicalGroupPanel("Root", null);
         add(rootGroup, "growx");
 
         // The FilterPanel is now responsible for wiring up all buttons.
@@ -41,7 +41,16 @@ public class FilterExpressionBuilderPanel extends JPanel {
             FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
             targetGroup.removeComponent(sourcePanel);
         };
-        FilterRulePanel newRulePanel = new FilterRulePanel(rule, panelProvider, deleteListener);
+        String ruleName = com.excelutility.core.AutoNamingService.suggestRuleName();
+        FilterRulePanel newRulePanel = new FilterRulePanel(ruleName, rule, deleteListener);
+
+        // Wire up the preview button to the main panel's logic
+        // This is a bit of a workaround, but keeps the logic in FilterPanel.
+        // A better long-term solution might use an event bus.
+        if (newRulePanel.getPreviewButton() != null) {
+            newRulePanel.getPreviewButton().addActionListener(e -> panelProvider.previewRule(newRulePanel));
+        }
+
         targetGroup.addComponent(newRulePanel);
     }
 
