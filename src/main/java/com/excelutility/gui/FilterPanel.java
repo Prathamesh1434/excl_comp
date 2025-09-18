@@ -65,28 +65,19 @@ public class FilterPanel extends JPanel {
         // --- Main Content Panel ---
         JPanel mainContentPanel = new JPanel(new MigLayout("fill, insets 5",
                 "[sg preview, grow, fill][sg preview, grow, fill][grow, fill]", // 3 columns
-                "[grow, fill]")); // 1 main row
+                "[grow 60, fill][grow 40, fill]")); // 2 rows
         add(mainContentPanel, BorderLayout.CENTER);
 
-        // --- Left Column (Data Preview & Unified View) ---
-        JPanel leftColumnPanel = new JPanel(new MigLayout("fill, wrap 1", "[grow, fill]", "[grow 50, fill][grow 50, fill]"));
+        // --- Top Row ---
+        // Data Preview (Top-Left)
         dataPreviewModel = new DefaultTableModel();
         dataPreviewTable = new JTable(dataPreviewModel);
         configureTable(dataPreviewTable);
         JScrollPane dataPreviewScroll = new JScrollPane(dataPreviewTable);
         dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview (First 50 rows)"));
-        leftColumnPanel.add(dataPreviewScroll, "grow");
+        mainContentPanel.add(dataPreviewScroll, "grow");
 
-        unifiedDataViewTabs = new JTabbedPane();
-        unifiedDataViewTabs.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
-        JPanel unifiedDataViewPlaceholder = new JPanel(new BorderLayout());
-        unifiedDataViewTabs.addTab("Unified", unifiedDataViewPlaceholder);
-        leftColumnPanel.add(unifiedDataViewTabs, "grow");
-
-        mainContentPanel.add(leftColumnPanel, "grow");
-
-
-        // --- Center Column (Filter Values Preview) ---
+        // Filter Values Preview (Top-Center)
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
         configureTable(filterValuesPreviewTable);
@@ -95,14 +86,22 @@ public class FilterPanel extends JPanel {
         filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data)"));
         mainContentPanel.add(filterValuesPreviewScroll, "grow");
 
-        // --- Right Column (Builder & Actions) ---
-        JPanel rightColumnPanel = new JPanel(new MigLayout("fill, wrap 1", "[grow, fill]", "[grow 70, fill][grow 30, fill]"));
+        // Filter Logic Builder (Top-Right)
         filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
         JScrollPane builderScrollPane = new JScrollPane(filterExpressionBuilderPanel);
         builderScrollPane.setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
-        rightColumnPanel.add(builderScrollPane, "grow");
+        mainContentPanel.add(builderScrollPane, "grow, wrap"); // wrap to next row
 
-        JPanel actionPanel = new JPanel(new MigLayout("wrap 2, fillx, insets 10", "[grow, fill]"));
+        // --- Bottom Row ---
+        // Unified Data View (Bottom-Left & Bottom-Center)
+        unifiedDataViewTabs = new JTabbedPane();
+        unifiedDataViewTabs.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
+        JPanel unifiedDataViewPlaceholder = new JPanel(new BorderLayout());
+        unifiedDataViewTabs.addTab("Unified", unifiedDataViewPlaceholder);
+        mainContentPanel.add(unifiedDataViewTabs, "span 2, grow");
+
+        // Action Buttons (Bottom-Right)
+        JPanel actionPanel = new JPanel(new MigLayout("wrap 1, fillx, insets 10", "[grow, fill]"));
         actionPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
         JButton addGroupButton = new JButton("Add Group");
         JButton calculateButton = new JButton("Calculate Total");
@@ -110,15 +109,13 @@ public class FilterPanel extends JPanel {
         JButton downloadButton = new JButton("Download Filtered Results");
         JButton colorButton = new JButton("Set Highlight Color");
         totalMatchesLabel = new JLabel("Total Matches: N/A");
-        actionPanel.add(addGroupButton, "span, growx");
-        actionPanel.add(calculateButton, "gaptop 10, split 2");
-        actionPanel.add(viewButton, "gaptop 10");
-        actionPanel.add(totalMatchesLabel, "span, gaptop 5");
-        actionPanel.add(downloadButton, "gaptop 10, span, growx");
-        actionPanel.add(colorButton, "span, growx");
-        rightColumnPanel.add(actionPanel, "grow");
-
-        mainContentPanel.add(rightColumnPanel, "grow");
+        actionPanel.add(addGroupButton);
+        actionPanel.add(calculateButton, "gaptop 10");
+        actionPanel.add(viewButton);
+        actionPanel.add(totalMatchesLabel, "gaptop 5");
+        actionPanel.add(downloadButton, "gaptop 10");
+        actionPanel.add(colorButton);
+        mainContentPanel.add(actionPanel, "grow");
 
 
         // --- Action Listeners ---
