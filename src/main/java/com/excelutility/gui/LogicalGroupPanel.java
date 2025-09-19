@@ -22,7 +22,9 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     private final JTextField groupNameField;
     private final JPanel contentPanel;
     private final JButton addRuleButton;
+    private final JButton previewButton;
     private final JLabel recordCountLabel;
+    private final ActionListener changeListener;
 
     /**
      * A panel for the AND/OR radio buttons between components.
@@ -31,13 +33,18 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         private final JRadioButton andButton;
         private final JRadioButton orButton;
 
-        public OperatorPanel() {
+        public OperatorPanel(ActionListener changeListener) {
             super(new FlowLayout(FlowLayout.CENTER, 5, 0));
             setBackground(new Color(255, 255, 224)); // Pale Yellow
             andButton = new JRadioButton("AND");
             andButton.setBackground(getBackground());
             orButton = new JRadioButton("OR");
             orButton.setBackground(getBackground());
+
+            if (changeListener != null) {
+                andButton.addActionListener(changeListener);
+                orButton.addActionListener(changeListener);
+            }
 
             ButtonGroup group = new ButtonGroup();
             group.add(andButton);
@@ -52,9 +59,10 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         }
     }
 
-    public LogicalGroupPanel(String initialName, ActionListener deleteListener) {
+    public LogicalGroupPanel(String initialName, ActionListener deleteListener, ActionListener changeListener) {
         // Main panel setup
         super(new MigLayout("insets 0, fillx, wrap 1", "[grow]"));
+        this.changeListener = changeListener;
         setBorder(BorderFactory.createTitledBorder(initialName));
         // A light blue background for the group header area can be achieved by styling the topBar
         setBackground(Color.WHITE);
@@ -71,6 +79,9 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         recordCountLabel = new JLabel("(N/A)");
         recordCountLabel.setFont(recordCountLabel.getFont().deriveFont(Font.BOLD));
         topBar.add(recordCountLabel, "gapleft 10");
+
+        previewButton = new JButton("Preview");
+        topBar.add(previewButton, "gapleft 10");
 
         addRuleButton = new JButton("Add Rule");
         topBar.add(addRuleButton);
@@ -105,7 +116,7 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         }
         // Add an operator panel if this is not the first component
         if (contentPanel.getComponentCount() > 0) {
-            contentPanel.add(new OperatorPanel(), "growx, align center");
+            contentPanel.add(new OperatorPanel(this.changeListener), "growx, align center");
         }
         contentPanel.add(component, "growx");
         revalidateAndRepaint();
@@ -186,6 +197,25 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
 
     public JButton getAddRuleButton() {
         return addRuleButton;
+    }
+
+    public JButton getPreviewButton() {
+        return previewButton;
+    }
+
+    public String getName() {
+        return groupNameField.getText();
+    }
+
+    public List<LogicalGroupPanel> getAllGroupPanels() {
+        List<LogicalGroupPanel> panels = new java.util.ArrayList<>();
+        panels.add(this);
+        for (Component comp : contentPanel.getComponents()) {
+            if (comp instanceof LogicalGroupPanel) {
+                panels.addAll(((LogicalGroupPanel) comp).getAllGroupPanels());
+            }
+        }
+        return panels;
     }
 
     public void setRecordCount(int count) {

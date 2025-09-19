@@ -7,6 +7,10 @@ import com.excelutility.core.RowComparisonStatus;
 import com.excelutility.core.RowResult;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -164,15 +168,24 @@ public class SimpleExcelWriter {
         return style;
     }
 
+    public static String sanitizeSheetName(String name) {
+        String sanitized = name.replaceAll("[\\\\/*?\\[\\]:]", "_");
+        if (sanitized.length() > 31) {
+            sanitized = sanitized.substring(0, 31);
+        }
+        return sanitized;
+    }
+
     public static void writeFilteredResults(String baseFilePath, Map<String, List<List<Object>>> filteredData, boolean mergeInOneFile, java.awt.Color rowColor) throws IOException {
         if (mergeInOneFile) {
-            try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) { // keep 100 rows in memory, exceeding rows will be flushed to disk
                 for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
                     writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
                 }
                 try (FileOutputStream outputStream = new FileOutputStream(baseFilePath)) {
                     workbook.write(outputStream);
                 }
+                workbook.dispose();
             }
         } else {
             File baseFile = new File(baseFilePath);
@@ -188,24 +201,35 @@ public class SimpleExcelWriter {
             for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
                 String fileName = String.format("%s_%s%s", baseName, entry.getKey(), extension);
                 File outputFile = new File(parentDir, fileName);
-                try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+                try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) {
                     writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
                     try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
                         workbook.write(outputStream);
                     }
+                    workbook.dispose();
                 }
             }
         }
     }
 
-    private static void writeSheet(XSSFWorkbook workbook, String sheetName, List<List<Object>> data, java.awt.Color rowColor) {
+    private static void writeSheet(Workbook workbook, String sheetName, List<List<Object>> data, java.awt.Color rowColor) {
         Sheet sheet = workbook.createSheet(sheetName);
-        CellStyle rowStyle = createStyleWithColor(workbook, rowColor);
+        if (sheet instanceof SXSSFSheet) {
+            ((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
+        }
+
+        XSSFWorkbook xssfWorkbook;
+        if (workbook instanceof SXSSFWorkbook) {
+            xssfWorkbook = ((SXSSFWorkbook) workbook).getXSSFWorkbook();
+        } else {
+            xssfWorkbook = (XSSFWorkbook) workbook;
+        }
+        CellStyle rowStyle = createStyleWithColor(xssfWorkbook, rowColor);
 
         // Write header
         if (data.isEmpty()) {
             Row row = sheet.createRow(0);
-            row.createCell(0).setCellValue("No data for this filter.");
+            row.createCell(0).setCellValue("No rows matched this filter.");
             return;
         }
 

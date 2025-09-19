@@ -203,4 +203,61 @@ public class FilteringService {
 
         return results;
     }
+
+    public int getMatchCount(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, com.excelutility.core.expression.FilterExpression expression) throws IOException, InvalidFormatException {
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, true); // Use streaming for counting
+        if (allData.isEmpty()) {
+            return 0;
+        }
+
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
+        }
+
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
+
+        int count = 0;
+        for (List<Object> row : dataRows) {
+            if (expression.evaluate(row, header, this)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public java.util.Map<String, List<List<Object>>> filterMultiple(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions) throws IOException, InvalidFormatException {
+        java.util.Map<String, List<List<Object>>> results = new java.util.HashMap<>();
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
+        if (allData.isEmpty()) {
+            return results;
+        }
+
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
+        }
+
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
+
+        for (java.util.Map.Entry<String, com.excelutility.core.expression.FilterExpression> entry : expressions.entrySet()) {
+            String name = entry.getKey();
+            com.excelutility.core.expression.FilterExpression expression = entry.getValue();
+            List<List<Object>> filteredRows = new ArrayList<>();
+            filteredRows.add(new ArrayList<>(header));
+
+            for (List<Object> row : dataRows) {
+                if (expression.evaluate(row, header, this)) {
+                    filteredRows.add(row);
+                }
+            }
+            results.put(name, filteredRows);
+        }
+
+        return results;
+    }
 }

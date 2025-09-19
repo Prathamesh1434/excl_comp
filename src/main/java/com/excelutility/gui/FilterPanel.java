@@ -47,6 +47,7 @@ public class FilterPanel extends JPanel {
     private Color selectedColor = Color.YELLOW;
     private final AppContainer appContainer;
     private final FilterProfileService profileService = new FilterProfileService();
+    private final Map<String, Component> openPreviewTabs = new java.util.HashMap<>();
 
     public FilterPanel(AppContainer appContainer) {
         this.appContainer = appContainer;
@@ -121,22 +122,27 @@ public class FilterPanel extends JPanel {
         // --- Action Listeners ---
         previewButton.addActionListener(e -> loadPreviews());
         colorButton.addActionListener(e -> chooseColor());
-        downloadButton.addActionListener(e -> startFilterProcess(ProcessDestination.EXPORT));
+        downloadButton.addActionListener(e -> promptAndSaveResults());
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
 
         addGroupButton.addActionListener(e -> {
             LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
+            ActionListener changeListener = ev -> updateFilterResults();
             ActionListener deleteListener = event -> {
                 LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
                 rootGroup.removeComponent(sourceGroup);
                 updateFilterResults();
             };
             String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener);
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener, changeListener);
             newGroup.getAddRuleButton().addActionListener(ev -> createFilterFromSelection(newGroup));
+            newGroup.getPreviewButton().addActionListener(ev -> previewGroup(newGroup));
             rootGroup.addComponent(newGroup);
+            updateGroupCount(newGroup);
         });
+
+        filterExpressionBuilderPanel.getRootGroup().getPreviewButton().addActionListener(e -> previewGroup(filterExpressionBuilderPanel.getRootGroup()));
 
         filterExpressionBuilderPanel.getRootGroup().getAddRuleButton().addActionListener(ev -> createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup()));
 
@@ -177,8 +183,43 @@ public class FilterPanel extends JPanel {
         }
     }
 
-    private void updateFilterResults() {
+    public void updateFilterResults() {
+        // First, update the main view.
         startFilterProcess(ProcessDestination.VIEW);
+
+        // Then, iterate through all groups and update their individual counts.
+        List<LogicalGroupPanel> allGroups = filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels();
+        for (LogicalGroupPanel group : allGroups) {
+            updateGroupCount(group);
+        }
+    }
+
+    private void updateGroupCount(LogicalGroupPanel groupPanel) {
+        String dataFilePath = dataFilePanel.getFilePath();
+        String sheetName = dataFilePanel.getSelectedSheet();
+        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
+            return; // Can't calculate without a data file
+        }
+
+        FilterExpression expression = groupPanel.getExpression();
+
+        new SwingWorker<Integer, Void>() {
+            @Override
+            protected Integer doInBackground() throws Exception {
+                return filteringService.getMatchCount(dataFilePath, sheetName, dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), expression);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    int count = get();
+                    groupPanel.setRecordCount(count);
+                } catch (Exception e) {
+                    logger.error("Failed to update group count for group '{}'", groupPanel.getName(), e);
+                    groupPanel.setRecordCount(-1); // Indicate an error
+                }
+            }
+        }.execute();
     }
 
     private void startFilterProcess(ProcessDestination destination) {
@@ -231,8 +272,6 @@ public class FilterPanel extends JPanel {
 
                     if (destination == ProcessDestination.VIEW) {
                         updateUnifiedViewTab(resultData, selectedColumns);
-                    } else if (destination == ProcessDestination.EXPORT) {
-                        promptAndSaveResults(resultData);
                     }
                 } catch (Exception e) {
                     logger.error("Filtering process failed.", e);
@@ -269,11 +308,18 @@ public class FilterPanel extends JPanel {
     }
 
     public void previewRule(FilterRulePanel rulePanel) {
-        runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, rulePanel.getRuleName() + " Preview");
+        String tabTitle = rulePanel.getRuleName() + " - " + rulePanel.getRule().getDescriptiveName();
+        // To prevent overly long tab titles, truncate if necessary
+        if (tabTitle.length() > 30) {
+            tabTitle = tabTitle.substring(0, 27) + "...";
+        }
+        runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, tabTitle);
     }
 
     public void previewGroup(LogicalGroupPanel groupPanel) {
-        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, groupPanel.getName() + " Preview");
+        String tabTitle = groupPanel.getName();
+        logger.info("GroupPreviewOpen: name={}, expression='{}'", tabTitle, groupPanel.getExpression().getDescriptiveName());
+        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, tabTitle);
     }
 
     private void runPreviewFilter(FilterExpression expression, java.util.function.Consumer<Integer> countConsumer, String tabTitle) {
@@ -296,11 +342,7 @@ public class FilterPanel extends JPanel {
                     List<List<Object>> resultData = get();
                     int recordCount = resultData.isEmpty() ? 0 : resultData.size() - 1;
                     countConsumer.accept(recordCount);
-                    if (recordCount > 0) {
-                        addPreviewTab(tabTitle, resultData);
-                    } else {
-                        JOptionPane.showMessageDialog(FilterPanel.this, "No records match the preview criteria.", "No Matches", JOptionPane.INFORMATION_MESSAGE);
-                    }
+                    addPreviewTab(tabTitle, resultData);
                 } catch (Exception e) {
                     logger.error("Preview filtering process failed.", e);
                     countConsumer.accept(-1);
@@ -311,13 +353,28 @@ public class FilterPanel extends JPanel {
     }
 
     private void addPreviewTab(String title, List<List<Object>> data) {
+        // If a tab with this title already exists, just focus it.
+        if (openPreviewTabs.containsKey(title)) {
+            unifiedDataViewTabs.setSelectedComponent(openPreviewTabs.get(title));
+            return;
+        }
+
         JPanel contentPanel = new JPanel(new BorderLayout());
         JTable table = new JTable();
         configureTable(table);
         JScrollPane scrollPane = new JScrollPane(table);
         contentPanel.add(scrollPane, BorderLayout.CENTER);
 
-        if (!data.isEmpty()) {
+        // Handle case where there are no results
+        if (data.isEmpty() || data.size() <= 1) {
+            DefaultTableModel model = new DefaultTableModel();
+            if(!data.isEmpty()){ // Has headers but no rows
+                 Vector<String> headers = data.get(0).stream().map(Object::toString).collect(Collectors.toCollection(Vector::new));
+                 model.setColumnIdentifiers(headers);
+            }
+            model.addRow(new Vector<>() {{ add("No rows matched"); }});
+            table.setModel(model);
+        } else {
             Vector<String> headers = data.get(0).stream().map(Object::toString).collect(Collectors.toCollection(Vector::new));
             Vector<Vector<Object>> dataVector = new Vector<>();
             for (int i = 1; i < data.size(); i++) {
@@ -340,29 +397,64 @@ public class FilterPanel extends JPanel {
         unifiedDataViewTabs.insertTab(title, null, contentPanel, "Preview for " + title, tabIndex);
         unifiedDataViewTabs.setTabComponentAt(tabIndex, tabComponent);
         unifiedDataViewTabs.setSelectedIndex(tabIndex);
-        closeButton.addActionListener(e -> unifiedDataViewTabs.remove(contentPanel));
+
+        openPreviewTabs.put(title, contentPanel);
+
+        closeButton.addActionListener(e -> {
+            unifiedDataViewTabs.remove(contentPanel);
+            openPreviewTabs.remove(title);
+        });
     }
 
-    private void promptAndSaveResults(List<List<Object>> filteredData) {
+    private void promptAndSaveResults() {
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Save Filtered Results");
+        chooser.setDialogTitle("Save Filtered Results Workbook");
         chooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        String timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date());
+        chooser.setSelectedFile(new File("FilteredResults_" + timestamp + ".xlsx"));
+
         if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File fileToSave = chooser.getSelectedFile();
             String filePath = fileToSave.getAbsolutePath();
             if (!filePath.toLowerCase().endsWith(".xlsx")) {
-                filePath += ".xlsx";
+                filePath = filePath + ".xlsx";
             }
-            try {
-                Map<String, List<List<Object>>> results = Map.of("Filtered_Results", filteredData);
-                SimpleExcelWriter.writeFilteredResults(filePath, results, true, selectedColor);
-                int recordCount = filteredData.isEmpty() ? 0 : filteredData.size() - 1;
-                JOptionPane.showMessageDialog(this, "Results exported successfully! " + recordCount + " records saved.", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Export failed.", e);
-                JOptionPane.showMessageDialog(this, "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+            final String finalFilePath = filePath;
+
+            // Gather all expressions
+            Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
+            expressions.put("Unified_Result", filterExpressionBuilderPanel.getRootGroup().getExpression());
+            List<LogicalGroupPanel> groups = filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels();
+            groups.remove(filterExpressionBuilderPanel.getRootGroup()); // Exclude the root group itself
+            for (int i = 0; i < groups.size(); i++) {
+                LogicalGroupPanel group = groups.get(i);
+                String safeName = SimpleExcelWriter.sanitizeSheetName("Group_" + (i + 1) + "_" + group.getName());
+                expressions.put(safeName, group.getExpression());
             }
+
+            logger.info("ExportStart: file={}, groupsCount={}, totalRows=?", finalFilePath, expressions.size() -1);
+
+            new SwingWorker<Map<String, List<List<Object>>>, Void>() {
+                @Override
+                protected Map<String, List<List<Object>>> doInBackground() throws Exception {
+                    return filteringService.filterMultiple(dataFilePanel.getFilePath(), dataFilePanel.getSelectedSheet(), dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), expressions);
+                }
+
+                @Override
+                protected void done() {
+                    long startTime = System.currentTimeMillis();
+                    try {
+                        Map<String, List<List<Object>>> results = get();
+                        SimpleExcelWriter.writeFilteredResults(finalFilePath, results, true, selectedColor);
+                        long duration = System.currentTimeMillis() - startTime;
+                        logger.info("ExportComplete: duration={}ms", duration);
+                        JOptionPane.showMessageDialog(FilterPanel.this, "Results exported successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                    } catch (Exception e) {
+                        logger.error("Export failed.", e);
+                        JOptionPane.showMessageDialog(FilterPanel.this, "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }.execute();
         }
     }
 
@@ -522,8 +614,10 @@ public class FilterPanel extends JPanel {
                     LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
                     uiGroup.removeComponent(sourceGroup);
                 };
-                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener);
+                ActionListener changeListener = ev -> updateFilterResults();
+                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener, changeListener);
                 newUiGroup.getAddRuleButton().addActionListener(e -> createFilterFromSelection(newUiGroup));
+                newUiGroup.getPreviewButton().addActionListener(e -> previewGroup(newUiGroup));
                 uiGroup.addComponent(newUiGroup);
                 populateGroupFromNode(newUiGroup, childGroupNode);
             }
