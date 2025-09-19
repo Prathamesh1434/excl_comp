@@ -38,7 +38,11 @@ public class ProfileSerializationTest {
                 "Sheet1",
                 "/path/to/filters.xlsx",
                 "FilterValues",
-                builderState
+                builderState,
+                List.of(0),
+                ConcatenationMode.LEAF_ONLY,
+                List.of(1),
+                ConcatenationMode.BREADCRUMB
         );
 
         // 2. Serialize to JSON

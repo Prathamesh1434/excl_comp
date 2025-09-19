@@ -24,7 +24,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
         setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
 
         // The root group cannot be deleted, so its delete listener is null.
-        rootGroup = new LogicalGroupPanel("Root", null, e -> panelProvider.updateFilterResults());
+        rootGroup = new LogicalGroupPanel("Root", null);
         add(rootGroup, "growx");
 
         // The FilterPanel is now responsible for wiring up all buttons.
@@ -40,8 +40,6 @@ public class FilterExpressionBuilderPanel extends JPanel {
         ActionListener deleteListener = e -> {
             FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
             targetGroup.removeComponent(sourcePanel);
-            panelProvider.isDirty = true;
-            panelProvider.updateFilterResults();
         };
         String ruleName = com.excelutility.core.AutoNamingService.suggestRuleName();
         FilterRulePanel newRulePanel = new FilterRulePanel(ruleName, rule, deleteListener);
@@ -71,13 +69,19 @@ public class FilterExpressionBuilderPanel extends JPanel {
         rootGroup.removeAll();
         com.excelutility.core.AutoNamingService.reset();
 
+        if (state == null || state.getGroups() == null) {
+            rootGroup.revalidate();
+            rootGroup.repaint();
+            return;
+        }
+
         for (com.excelutility.core.GroupState groupState : state.getGroups()) {
-            // This is a simplified reconstruction. A full implementation would handle nesting.
             ActionListener deleteListener = event -> {
                 LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
                 rootGroup.removeComponent(sourceGroup);
+                panelProvider.updateFilterResults();
             };
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupState.getName(), deleteListener, e -> panelProvider.updateFilterResults());
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupState.getName(), deleteListener);
             for (com.excelutility.core.RuleState ruleState : groupState.getRules()) {
                 addRuleToGroup(newGroup, ruleState.toFilterRule());
             }
@@ -93,7 +97,6 @@ public class FilterExpressionBuilderPanel extends JPanel {
      * @return The current state.
      */
     public com.excelutility.core.FilterBuilderState getState() {
-        // This is a simplified capture. A full implementation would handle nesting.
         java.util.List<com.excelutility.core.GroupState> groupStates = new java.util.ArrayList<>();
         for (java.awt.Component comp : rootGroup.getComponents()) {
             if (comp instanceof LogicalGroupPanel) {
@@ -106,7 +109,7 @@ public class FilterExpressionBuilderPanel extends JPanel {
                         ruleStates.add(new com.excelutility.core.RuleState(rule.getSourceType(), rule.getSourceValue(), rule.getTargetColumn(), rule.isTrimWhitespace()));
                     }
                 }
-                // Note: This simplified version doesn't capture the group's logical operator.
+                // This simplified version doesn't capture the group's logical operator or nested groups.
                 groupStates.add(new com.excelutility.core.GroupState(groupPanel.getName(), com.excelutility.core.FilteringService.LogicalOperator.AND, ruleStates, new java.util.ArrayList<>()));
             }
         }

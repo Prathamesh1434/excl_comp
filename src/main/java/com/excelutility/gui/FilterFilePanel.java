@@ -157,11 +157,6 @@ public class FilterFilePanel extends JPanel {
     public List<Integer> getHeaderRowIndices() { return headerRowIndices; }
     public ConcatenationMode getConcatenationMode() { return concatenationMode; }
 
-    /**
-     * Sets the file path and selected sheet programmatically, updating the UI.
-     * @param filePath The absolute path to the Excel file.
-     * @param sheetName The name of the sheet to select.
-     */
     public void setFileAndSheet(String filePath, String sheetName) {
         if (filePath == null || filePath.trim().isEmpty()) {
             this.selectedFile = null;
@@ -179,5 +174,10 @@ public class FilterFilePanel extends JPanel {
         if (sheetName != null) {
             sheetCombo.setSelectedItem(sheetName);
         }
+    }
+
+    public void setHeaderSelection(List<Integer> indices, ConcatenationMode mode) {
+        this.headerRowIndices = (indices != null) ? new ArrayList<>(indices) : new ArrayList<>();
+        this.concatenationMode = (mode != null) ? mode : ConcatenationMode.LEAF_ONLY;
     }
 }

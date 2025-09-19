@@ -31,7 +31,6 @@ public class FilterProfileService {
         try {
             Files.createDirectories(profileDir);
         } catch (IOException e) {
-            // In a real app, you might want a more robust fallback or error handling
             throw new RuntimeException("Could not create profile directory: " + profileDir, e);
         }
         this.mapper = new ObjectMapper();

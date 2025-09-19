@@ -32,13 +32,13 @@ public class SimpleExcelWriter {
                 for (Object field : rowData) {
                     Cell cell = row.createCell(colNum++);
                     if (field instanceof String) {
-                        cell.setCellValue(sanitizeCellValue(field));
+                        cell.setCellValue((String) field);
                     } else if (field instanceof Integer) {
                         cell.setCellValue((Integer) field);
                     } else if (field instanceof Double) {
                         cell.setCellValue((Double) field);
                     } else {
-                        cell.setCellValue(sanitizeCellValue(field));
+                        cell.setCellValue(field != null ? field.toString() : "");
                     }
                 }
             }
@@ -227,10 +227,10 @@ public class SimpleExcelWriter {
         }
     }
 
-    private static void writeSheet(Workbook workbook, String sheetName, List<List<Object>> data, java.awt.Color highlightColor) {
+    private static void writeSheet(SXSSFWorkbook workbook, String sheetName, List<List<Object>> data, java.awt.Color highlightColor) {
         Sheet sheet = workbook.createSheet(sheetName);
-        if (sheet instanceof SXSSFSheet) {
-            ((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
+        if (sheet instanceof org.apache.poi.xssf.streaming.SXSSFSheet) {
+            ((org.apache.poi.xssf.streaming.SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
         }
 
         // Handle empty data case cleanly
@@ -242,7 +242,7 @@ public class SimpleExcelWriter {
         CellStyle highlightStyle = null;
         if (highlightColor != null) {
             // All workbooks in this context are SXSSF, so this is safe.
-            XSSFWorkbook xssfWorkbook = ((SXSSFWorkbook) workbook).getXSSFWorkbook();
+            XSSFWorkbook xssfWorkbook = workbook.getXSSFWorkbook();
             highlightStyle = createStyleWithColor(xssfWorkbook, highlightColor);
         }
 
@@ -251,7 +251,7 @@ public class SimpleExcelWriter {
         List<Object> headerData = data.get(0);
         for (int i = 0; i < headerData.size(); i++) {
             Cell cell = headerRow.createCell(i);
-            cell.setCellValue(sanitizeCellValue(headerData.get(i)));
+            setCellValue(cell, headerData.get(i));
         }
 
         // Write data rows

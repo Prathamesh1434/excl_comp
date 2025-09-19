@@ -325,9 +325,7 @@ public class ComparePanel extends JPanel {
         String profileName = JOptionPane.showInputDialog(this, "Enter a name for this profile:", "Save Profile", JOptionPane.PLAIN_MESSAGE);
         if (profileName != null && !profileName.trim().isEmpty()) {
             try {
-                // Generate a simple ID from the name for the filename.
-                String profileId = profileName.trim().replaceAll("[^a-zA-Z0-9.-]", "_");
-                profileService.saveProfile(profile, profileId, profileName);
+                profileService.saveProfile(profile, profileName);
                 JOptionPane.showMessageDialog(this, "Profile saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -336,25 +334,19 @@ public class ComparePanel extends JPanel {
     }
 
     private void loadProfile() {
-        Map<String, String> profileIndex = profileService.loadProfileIndex();
-        if (profileIndex.isEmpty()) {
+        List<String> profiles = profileService.getAvailableProfiles();
+        if (profiles.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No saved profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        String[] profileNames = profileIndex.keySet().toArray(new String[0]);
+        String selectedProfile = (String) JOptionPane.showInputDialog(this, "Select a profile to load:",
+                "Load Profile", JOptionPane.QUESTION_MESSAGE, null, profiles.toArray(), profiles.get(0));
 
-        String selectedProfileName = (String) JOptionPane.showInputDialog(this, "Select a profile to load:",
-                "Load Profile", JOptionPane.QUESTION_MESSAGE, null, profileNames, profileNames[0]);
-
-        if (selectedProfileName != null) {
+        if (selectedProfile != null) {
             try {
-                String profileId = profileIndex.get(selectedProfileName);
-                if (profileId == null) {
-                    throw new IOException("Profile ID not found for " + selectedProfileName);
-                }
-                ComparisonProfile loadedProfile = profileService.loadProfile(profileId, ComparisonProfile.class);
+                ComparisonProfile loadedProfile = profileService.loadProfile(selectedProfile);
                 updateGuiFromProfile(loadedProfile);
-                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfileName + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfile + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }

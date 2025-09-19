@@ -1,11 +1,8 @@
 package com.excelutility.gui;
 
-import com.excelutility.core.FilterProfile;
-import com.excelutility.core.FilterRule;
-import com.excelutility.core.FilteringService;
+import com.excelutility.core.*;
 import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.io.ExcelReader;
-import com.excelutility.core.FilterBuilderState;
 import com.excelutility.io.FilterProfileService;
 import com.excelutility.io.SimpleExcelWriter;
 import net.miginfocom.swing.MigLayout;
@@ -43,13 +40,13 @@ public class FilterPanel extends JPanel {
     private final FilteringService filteringService = new FilteringService();
     private JLabel totalMatchesLabel;
     private JTabbedPane unifiedDataViewTabs;
+    private final FilterProfileService filterProfileService = new FilterProfileService();
+    private boolean isDirty = false;
 
-    private enum ProcessDestination { VIEW, EXPORT, CALCULATE_ONLY }
+    private enum ProcessDestination { VIEW, CALCULATE_ONLY }
 
     private Color selectedColor = Color.YELLOW;
     private final AppContainer appContainer;
-    private final FilterProfileService filterProfileService = new FilterProfileService();
-    boolean isDirty = false;
 
     public FilterPanel(AppContainer appContainer) {
         this.appContainer = appContainer;
@@ -67,12 +64,11 @@ public class FilterPanel extends JPanel {
 
         // --- Main Content Panel ---
         JPanel mainContentPanel = new JPanel(new MigLayout("fill, insets 5",
-                "[sg preview, grow, fill][sg preview, grow, fill][grow, fill]", // 3 columns
-                "[grow 60, fill][grow 40, fill]")); // 2 rows
+                "[sg preview, grow, fill][sg preview, grow, fill][grow, fill]",
+                "[grow 60, fill][grow 40, fill]"));
         add(mainContentPanel, BorderLayout.CENTER);
 
         // --- Top Row ---
-        // Data Preview (Top-Left)
         dataPreviewModel = new DefaultTableModel();
         dataPreviewTable = new JTable(dataPreviewModel);
         configureTable(dataPreviewTable);
@@ -80,7 +76,6 @@ public class FilterPanel extends JPanel {
         dataPreviewScroll.setBorder(BorderFactory.createTitledBorder("Data Preview (First 50 rows)"));
         mainContentPanel.add(dataPreviewScroll, "grow");
 
-        // Filter Values Preview (Top-Center)
         filterValuesPreviewModel = new DefaultTableModel();
         filterValuesPreviewTable = new JTable(filterValuesPreviewModel);
         configureTable(filterValuesPreviewTable);
@@ -89,53 +84,39 @@ public class FilterPanel extends JPanel {
         filterValuesPreviewScroll.setBorder(BorderFactory.createTitledBorder("Filter Values Preview (Full Data)"));
         mainContentPanel.add(filterValuesPreviewScroll, "grow");
 
-        // Filter Logic Builder (Top-Right)
         filterExpressionBuilderPanel = new FilterExpressionBuilderPanel(this);
         JScrollPane builderScrollPane = new JScrollPane(filterExpressionBuilderPanel);
         builderScrollPane.setBorder(BorderFactory.createTitledBorder("Filter Logic Builder"));
-        mainContentPanel.add(builderScrollPane, "grow, wrap"); // wrap to next row
+        mainContentPanel.add(builderScrollPane, "grow, wrap");
 
         // --- Bottom Row ---
-        // Unified Data View (Bottom-Left & Bottom-Center)
         unifiedDataViewTabs = new JTabbedPane();
         unifiedDataViewTabs.setBorder(BorderFactory.createTitledBorder("Unified Data View"));
         JPanel unifiedDataViewPlaceholder = new JPanel(new BorderLayout());
         unifiedDataViewTabs.addTab("Unified", unifiedDataViewPlaceholder);
         mainContentPanel.add(unifiedDataViewTabs, "span 2, grow");
 
-        // Action Buttons (Bottom-Right)
         JPanel actionPanel = new JPanel(new MigLayout("wrap 1, fillx, insets 10", "[grow, fill]"));
         actionPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
-        JButton saveProfileButton = new JButton("Save Profile...");
-        saveProfileButton.setToolTipText("Save the current filter configuration (Ctrl+S)");
-        JButton loadProfileButton = new JButton("Load Profile...");
-        loadProfileButton.setToolTipText("Load a filter configuration from a file (Ctrl+L)");
         JButton addGroupButton = new JButton("Add Group");
         JButton calculateButton = new JButton("Calculate Total");
         JButton viewButton = new JButton("View Overall Result");
         JButton downloadButton = new JButton("Download Filtered Results");
         JButton colorButton = new JButton("Set Highlight Color");
         totalMatchesLabel = new JLabel("Total Matches: N/A");
-        actionPanel.add(loadProfileButton);
-        actionPanel.add(saveProfileButton);
-        actionPanel.add(addGroupButton, "gaptop 10");
+        actionPanel.add(addGroupButton);
         actionPanel.add(calculateButton, "gaptop 10");
         actionPanel.add(viewButton);
         actionPanel.add(totalMatchesLabel, "gaptop 5");
         actionPanel.add(downloadButton, "gaptop 10");
         actionPanel.add(colorButton);
-
         JButton exitButton = new JButton("Exit");
         actionPanel.add(exitButton, "gaptop 20, align right");
-
         mainContentPanel.add(actionPanel, "grow");
-
 
         // --- Action Listeners ---
         previewButton.addActionListener(e -> loadPreviews());
         colorButton.addActionListener(e -> chooseColor());
-        saveProfileButton.addActionListener(e -> saveFilterProfile());
-        loadProfileButton.addActionListener(e -> loadFilterProfile());
         downloadButton.addActionListener(e -> startMultiSheetExportProcess());
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
@@ -147,10 +128,9 @@ public class FilterPanel extends JPanel {
                 LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
                 rootGroup.removeComponent(sourceGroup);
                 updateFilterResults();
-                isDirty = true;
             };
             String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener, ev -> updateFilterResults());
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener);
             newGroup.getAddRuleButton().addActionListener(ev -> createFilterFromSelection(newGroup));
             rootGroup.addComponent(newGroup);
             isDirty = true;
@@ -164,35 +144,6 @@ public class FilterPanel extends JPanel {
                 if (e.getClickCount() == 2) {
                     createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup());
                 }
-            }
-        });
-
-        setupKeyboardShortcuts();
-    }
-
-    private void setupKeyboardShortcuts() {
-        InputMap inputMap = this.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-        ActionMap actionMap = this.getActionMap();
-
-        // Ctrl+S or Cmd+S for Save
-        KeyStroke saveKeyStroke = KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
-                Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
-        inputMap.put(saveKeyStroke, "saveAction");
-        actionMap.put("saveAction", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                saveFilterProfile();
-            }
-        });
-
-        // Ctrl+L or Cmd+L for Load
-        KeyStroke loadKeyStroke = KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L,
-                Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
-        inputMap.put(loadKeyStroke, "loadAction");
-        actionMap.put("loadAction", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                loadFilterProfile();
             }
         });
     }
@@ -234,7 +185,9 @@ public class FilterPanel extends JPanel {
         String dataFilePath = dataFilePanel.getFilePath();
         String sheetName = dataFilePanel.getSelectedSheet();
         if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
-            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
+            if (destination != ProcessDestination.CALCULATE_ONLY) {
+                JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
+            }
             return;
         }
 
@@ -243,7 +196,6 @@ public class FilterPanel extends JPanel {
         new SwingWorker<List<List<Object>>, Void>() {
             @Override
             protected List<List<Object>> doInBackground() throws Exception {
-                // This method is now only used for VIEW and CALCULATE, which apply to the whole expression.
                 return filteringService.filter(dataFilePath, sheetName, dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), expression);
             }
 
@@ -256,15 +208,14 @@ public class FilterPanel extends JPanel {
                     totalMatchesLabel.setText("Total Matches: " + recordCount);
 
                     if (destination == ProcessDestination.CALCULATE_ONLY) {
-                        return; // Stop here for calculations
+                        return;
                     }
 
-                    // For VIEW, we update the main preview tab.
                     if (destination == ProcessDestination.VIEW) {
                         List<String> allColumns = dataFilePanel.getColumnNames();
-                        updateUnifiedViewTab(filteredData, allColumns);
+                        List<List<Object>> resultData = projectColumns(filteredData, allColumns);
+                        updateUnifiedViewTab(resultData, allColumns);
                     }
-
                 } catch (Exception e) {
                     logger.error("Filtering process failed.", e);
                     totalMatchesLabel.setText("Total Matches: Error");
@@ -272,6 +223,68 @@ public class FilterPanel extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    private void startMultiSheetExportProcess() {
+        String dataFilePath = dataFilePanel.getFilePath();
+        String sheetName = dataFilePanel.getSelectedSheet();
+        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
+            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
+        for (java.awt.Component comp : filterExpressionBuilderPanel.getRootGroup().getComponents()) {
+            if (comp instanceof LogicalGroupPanel) {
+                LogicalGroupPanel groupPanel = (LogicalGroupPanel) comp;
+                expressions.put(groupPanel.getName(), groupPanel.getExpression());
+            }
+        }
+
+        if (expressions.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No filter groups to export.", "Export Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Save Multi-Sheet Export");
+        chooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+
+        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = chooser.getSelectedFile();
+            String filePath = fileToSave.getAbsolutePath();
+            if (!filePath.toLowerCase().endsWith(".xlsx")) {
+                filePath += ".xlsx";
+            }
+            final String finalFilePath = filePath;
+
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    Map<String, List<List<Object>>> filteredData = filteringService.filterMultiple(
+                            dataFilePath,
+                            sheetName,
+                            dataFilePanel.getHeaderRowIndices(),
+                            dataFilePanel.getConcatenationMode(),
+                            expressions
+                    );
+                    SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                        JOptionPane.showMessageDialog(FilterPanel.this, "Multi-sheet export completed successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                    } catch (Exception e) {
+                        logger.error("Multi-sheet export failed.", e);
+                        JOptionPane.showMessageDialog(FilterPanel.this, "Failed to export results: " + e.getCause().getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }.execute();
+        }
     }
 
     private void updateUnifiedViewTab(List<List<Object>> data, List<String> headers) {
@@ -374,71 +387,32 @@ public class FilterPanel extends JPanel {
         closeButton.addActionListener(e -> unifiedDataViewTabs.remove(contentPanel));
     }
 
-    private void startMultiSheetExportProcess() {
-        String dataFilePath = dataFilePanel.getFilePath();
-        String sheetName = dataFilePanel.getSelectedSheet();
-        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
-            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
-            return;
+    private List<List<Object>> projectColumns(List<List<Object>> data, List<String> columnsToKeep) {
+        if (data.isEmpty() || columnsToKeep.isEmpty()) {
+            return data;
         }
-
-        // 1. Gather all expressions from the UI
-        Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
-        for (LogicalGroupPanel groupPanel : filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels()) {
-            expressions.put(groupPanel.getName(), groupPanel.getExpression());
-        }
-
-        if (expressions.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No filter groups to export.", "Export Error", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        // 2. Prompt user for save location
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Save Multi-Sheet Export");
-        chooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-
-        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File fileToSave = chooser.getSelectedFile();
-            String filePath = fileToSave.getAbsolutePath();
-            if (!filePath.toLowerCase().endsWith(".xlsx")) {
-                filePath += ".xlsx";
+        List<List<Object>> projectedData = new ArrayList<>();
+        List<String> originalHeader = data.get(0).stream().map(Object::toString).collect(Collectors.toList());
+        List<Integer> indicesToKeep = new ArrayList<>();
+        List<Object> newHeader = new ArrayList<>();
+        for (String column : columnsToKeep) {
+            int index = originalHeader.indexOf(column);
+            if (index != -1) {
+                indicesToKeep.add(index);
+                newHeader.add(column);
             }
-            final String finalFilePath = filePath;
-
-            // 3. Run filtering and writing in a background thread
-            new SwingWorker<Void, Void>() {
-                @Override
-                protected Void doInBackground() throws Exception {
-                    // 4. Call the filtering service
-                    Map<String, List<List<Object>>> filteredData = filteringService.filterMultiple(
-                            dataFilePath,
-                            sheetName,
-                            dataFilePanel.getHeaderRowIndices(),
-                            dataFilePanel.getConcatenationMode(),
-                            expressions
-                    );
-
-                    // 5. Call the writer
-                    SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        get(); // Check for exceptions
-                        JOptionPane.showMessageDialog(FilterPanel.this, "Multi-sheet export completed successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
-                    } catch (Exception e) {
-                        logger.error("Multi-sheet export failed.", e);
-                        JOptionPane.showMessageDialog(FilterPanel.this, "Failed to export results: " + e.getCause().getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
-            }.execute();
         }
+        projectedData.add(newHeader);
+        for (int i = 1; i < data.size(); i++) {
+            List<Object> originalRow = data.get(i);
+            List<Object> projectedRow = new ArrayList<>();
+            for (int index : indicesToKeep) {
+                projectedRow.add(index < originalRow.size() ? originalRow.get(index) : null);
+            }
+            projectedData.add(projectedRow);
+        }
+        return projectedData;
     }
-
 
     private void createFilterFromSelection(LogicalGroupPanel targetGroup) {
         int[] selectedRows = filterValuesPreviewTable.getSelectedRows();
@@ -491,8 +465,24 @@ public class FilterPanel extends JPanel {
         backItem.addActionListener(e -> appContainer.navigateTo("modeSelection"));
         fileMenu.add(backItem);
         fileMenu.addSeparator();
+
+        JMenuItem saveProfileItem = new JMenuItem("Save Profile...");
+        saveProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+        saveProfileItem.addActionListener(e -> saveFilterProfile());
+        fileMenu.add(saveProfileItem);
+
+        JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
+        loadProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+        loadProfileItem.addActionListener(e -> loadFilterProfile());
+        fileMenu.add(loadProfileItem);
+
+        JMenuItem deleteProfileItem = new JMenuItem("Delete Profile...");
+        deleteProfileItem.addActionListener(e -> deleteFilterProfile());
+        fileMenu.add(deleteProfileItem);
+
+        fileMenu.addSeparator();
         JMenuItem exitItem = new JMenuItem("Exit");
-        exitItem.addActionListener(e -> System.exit(0));
+        exitItem.addActionListener(e -> exitApplication());
         fileMenu.add(exitItem);
         menuBar.add(fileMenu);
         return menuBar;
@@ -537,6 +527,22 @@ public class FilterPanel extends JPanel {
         }
     }
 
+    private void deleteFilterProfile() {
+        List<File> profiles = filterProfileService.getAvailableProfiles();
+        if (profiles.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No profiles to delete.", "Delete Profile", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        ProfileChooserDialog dialog = new ProfileChooserDialog((Frame) SwingUtilities.getWindowAncestor(this), profiles);
+        dialog.setVisible(true);
+
+        File selectedProfileFile = dialog.getSelectedProfile();
+        if (selectedProfileFile != null && dialog.isDeleteRequested()) {
+            handleProfileDeletion(selectedProfileFile);
+        }
+    }
+
     private void handleProfileLoad(File profileFile) {
         try {
             FilterProfile profile = filterProfileService.loadProfile(profileFile);
@@ -578,49 +584,28 @@ public class FilterPanel extends JPanel {
             dataFilePanel.getSelectedSheet(),
             filterValuesFilePanel.getFilePath(),
             filterValuesFilePanel.getSelectedSheet(),
-            builderState
+            builderState,
+            dataFilePanel.getHeaderRowIndices(),
+            dataFilePanel.getConcatenationMode(),
+            filterValuesFilePanel.getHeaderRowIndices(),
+            filterValuesFilePanel.getConcatenationMode()
         );
     }
 
     private void rebuildUIFromProfile(FilterProfile profile) {
         dataFilePanel.setFileAndSheet(profile.getDataFilePath(), profile.getDataSheet());
+        dataFilePanel.setHeaderSelection(profile.getDataHeaderRowIndices(), profile.getDataConcatenationMode());
+
         filterValuesFilePanel.setFileAndSheet(profile.getFilterFilePath(), profile.getFilterSheet());
+        filterValuesFilePanel.setHeaderSelection(profile.getFilterHeaderRowIndices(), profile.getFilterConcatenationMode());
 
         filterExpressionBuilderPanel.rebuildFromState(profile.getFilterBuilder());
 
-        // Load previews for the newly set files and update the results based on the new filters
         loadPreviews();
         updateFilterResults();
+        isDirty = false; // Loading a profile makes it "not dirty"
 
         logger.info("Profile '{}' loaded.", profile.getProfileName());
-    }
-
-    private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
-        // This logic needs to be updated to handle the new infix operator model.
-        // For now, we will just load the rules and groups flatly.
-        // A proper implementation would need to parse the expression tree and create OperatorPanels.
-        uiGroup.setBorder(BorderFactory.createTitledBorder(dataNode.getName()));
-
-        for (FilterExpression childNode : dataNode.getChildren()) {
-            if (childNode instanceof com.excelutility.core.expression.RuleNode) {
-                com.excelutility.core.expression.RuleNode ruleNode = (com.excelutility.core.expression.RuleNode) childNode;
-                filterExpressionBuilderPanel.addRuleToGroup(uiGroup, ruleNode.getRule());
-            } else if (childNode instanceof com.excelutility.core.expression.GroupNode) {
-                com.excelutility.core.expression.GroupNode childGroupNode = (com.excelutility.core.expression.GroupNode) childNode;
-                ActionListener deleteListener = event -> {
-                    LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
-                    uiGroup.removeComponent(sourceGroup);
-                };
-                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener, ev -> updateFilterResults());
-                newUiGroup.getAddRuleButton().addActionListener(e -> createFilterFromSelection(newUiGroup));
-                uiGroup.addComponent(newUiGroup);
-                populateGroupFromNode(newUiGroup, childGroupNode);
-            }
-        }
-    }
-
-    private void manageProfiles() {
-        JOptionPane.showMessageDialog(this, "Profile Manager is not yet implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void exitApplication() {
@@ -638,8 +623,6 @@ public class FilterPanel extends JPanel {
             switch (response) {
                 case 0: // Save & Exit
                     saveFilterProfile();
-                    // If save was successful, isDirty will be false. We can exit.
-                    // If save was cancelled by user, isDirty will still be true. We don't exit.
                     if (!isDirty) {
                         System.exit(0);
                     }

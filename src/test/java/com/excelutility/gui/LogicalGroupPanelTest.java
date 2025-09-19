@@ -18,13 +18,13 @@ public class LogicalGroupPanelTest {
     @BeforeEach
     void setUp() {
         // The delete listener can be null for testing purposes
-        groupPanel = new LogicalGroupPanel("Test Group", null, null);
+        groupPanel = new LogicalGroupPanel("Test Group", null);
     }
 
     private FilterRulePanel createRealRulePanel(String ruleName) {
         FilterRule rule = new FilterRule(FilterRule.SourceType.BY_VALUE, ruleName, "ColumnA", false);
         // The delete listener can be null for this test
-        return new FilterRulePanel(ruleName, rule, e -> {});
+        return new FilterRulePanel(ruleName, rule, null);
     }
 
     @Test
