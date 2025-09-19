@@ -40,7 +40,6 @@ public class FilterExpressionBuilderPanel extends JPanel {
         ActionListener deleteListener = e -> {
             FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
             targetGroup.removeComponent(sourcePanel);
-            panelProvider.updateFilterResults();
         };
         String ruleName = com.excelutility.core.AutoNamingService.suggestRuleName();
         FilterRulePanel newRulePanel = new FilterRulePanel(ruleName, rule, deleteListener);

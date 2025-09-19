@@ -201,12 +201,11 @@ public class SimpleExcelWriter {
             for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
                 String fileName = String.format("%s_%s%s", baseName, entry.getKey(), extension);
                 File outputFile = new File(parentDir, fileName);
-                try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) {
+                try (XSSFWorkbook workbook = new XSSFWorkbook()) {
                     writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
                     try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
                         workbook.write(outputStream);
                     }
-                    workbook.dispose();
                 }
             }
         }

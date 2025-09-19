@@ -1,11 +1,9 @@
 package com.excelutility.gui;
 
-import com.excelutility.core.FilterProfile;
 import com.excelutility.core.FilterRule;
 import com.excelutility.core.FilteringService;
 import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.io.ExcelReader;
-import com.excelutility.io.FilterProfileService;
 import com.excelutility.io.SimpleExcelWriter;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -46,7 +44,6 @@ public class FilterPanel extends JPanel {
 
     private Color selectedColor = Color.YELLOW;
     private final AppContainer appContainer;
-    private final FilterProfileService profileService = new FilterProfileService();
     private final Map<String, Component> openPreviewTabs = new java.util.HashMap<>();
 
     public FilterPanel(AppContainer appContainer) {
@@ -184,12 +181,8 @@ public class FilterPanel extends JPanel {
     }
 
     public void updateFilterResults() {
-        // First, update the main view.
         startFilterProcess(ProcessDestination.VIEW);
-
-        // Then, iterate through all groups and update their individual counts.
-        List<LogicalGroupPanel> allGroups = filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels();
-        for (LogicalGroupPanel group : allGroups) {
+        for (LogicalGroupPanel group : filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels()) {
             updateGroupCount(group);
         }
     }
@@ -198,28 +191,29 @@ public class FilterPanel extends JPanel {
         String dataFilePath = dataFilePanel.getFilePath();
         String sheetName = dataFilePanel.getSelectedSheet();
         if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
-            return; // Can't calculate without a data file
+            return;
         }
-
-        FilterExpression expression = groupPanel.getExpression();
 
         new SwingWorker<Integer, Void>() {
             @Override
             protected Integer doInBackground() throws Exception {
-                return filteringService.getMatchCount(dataFilePath, sheetName, dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), expression);
+                return filteringService.getMatchCount(dataFilePath, sheetName, dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), groupPanel.getExpression());
             }
 
             @Override
             protected void done() {
                 try {
-                    int count = get();
-                    groupPanel.setRecordCount(count);
+                    groupPanel.setRecordCount(get());
                 } catch (Exception e) {
-                    logger.error("Failed to update group count for group '{}'", groupPanel.getName(), e);
-                    groupPanel.setRecordCount(-1); // Indicate an error
+                    groupPanel.setRecordCount(-1);
                 }
             }
         }.execute();
+    }
+
+    public void previewGroup(LogicalGroupPanel groupPanel) {
+        String tabTitle = groupPanel.getName();
+        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, tabTitle);
     }
 
     private void startFilterProcess(ProcessDestination destination) {
@@ -260,13 +254,6 @@ public class FilterPanel extends JPanel {
 
                     List<String> allColumns = dataFilePanel.getColumnNames();
                     List<String> selectedColumns = allColumns;
-
-                    if (destination == ProcessDestination.EXPORT) {
-                        ColumnSelectionDialog colDialog = new ColumnSelectionDialog((Frame) SwingUtilities.getWindowAncestor(FilterPanel.this), allColumns);
-                        colDialog.setVisible(true);
-                        if (colDialog.isCancelled()) return;
-                        selectedColumns = colDialog.getSelectedColumns();
-                    }
 
                     List<List<Object>> resultData = projectColumns(filteredData, selectedColumns);
 
@@ -314,12 +301,6 @@ public class FilterPanel extends JPanel {
             tabTitle = tabTitle.substring(0, 27) + "...";
         }
         runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, tabTitle);
-    }
-
-    public void previewGroup(LogicalGroupPanel groupPanel) {
-        String tabTitle = groupPanel.getName();
-        logger.info("GroupPreviewOpen: name={}, expression='{}'", tabTitle, groupPanel.getExpression().getDescriptiveName());
-        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, tabTitle);
     }
 
     private void runPreviewFilter(FilterExpression expression, java.util.function.Consumer<Integer> countConsumer, String tabTitle) {
@@ -556,72 +537,13 @@ public class FilterPanel extends JPanel {
     }
 
     private void saveProfile() {
-        FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
-        FilterProfile profile = new FilterProfile(expression);
-        String profileName = JOptionPane.showInputDialog(this, "Enter a name for this profile:", "Save Filter Profile", JOptionPane.PLAIN_MESSAGE);
-        if (profileName != null && !profileName.trim().isEmpty()) {
-            try {
-                profileService.saveProfile(profile, profileName);
-                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Failed to save filter profile: {}", profileName, e);
-                JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
+        // This will be replaced by the new profile management UI
+        JOptionPane.showMessageDialog(this, "Save Profile is not yet fully implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void loadProfile() {
-        List<String> profiles = profileService.getAvailableProfiles();
-        if (profiles.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No saved filter profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        String selectedProfile = (String) JOptionPane.showInputDialog(this, "Select a profile to load:",
-                "Load Filter Profile", JOptionPane.QUESTION_MESSAGE, null, profiles.toArray(), profiles.get(0));
-        if (selectedProfile != null) {
-            try {
-                FilterProfile loadedProfile = profileService.loadProfile(selectedProfile);
-                rebuildUIFromProfile(loadedProfile);
-                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfile + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Failed to load filter profile: {}", selectedProfile, e);
-                JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
-    private void rebuildUIFromProfile(FilterProfile profile) {
-        filterExpressionBuilderPanel.getRootGroup().removeAll();
-        com.excelutility.core.AutoNamingService.reset();
-        populateGroupFromNode(filterExpressionBuilderPanel.getRootGroup(), (com.excelutility.core.expression.GroupNode) profile.getRootExpression());
-        filterExpressionBuilderPanel.revalidate();
-        filterExpressionBuilderPanel.repaint();
-    }
-
-    private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
-        // This logic needs to be updated to handle the new infix operator model.
-        // For now, we will just load the rules and groups flatly.
-        // A proper implementation would need to parse the expression tree and create OperatorPanels.
-        uiGroup.setBorder(BorderFactory.createTitledBorder(dataNode.getName()));
-
-        for (FilterExpression childNode : dataNode.getChildren()) {
-            if (childNode instanceof com.excelutility.core.expression.RuleNode) {
-                com.excelutility.core.expression.RuleNode ruleNode = (com.excelutility.core.expression.RuleNode) childNode;
-                filterExpressionBuilderPanel.addRuleToGroup(uiGroup, ruleNode.getRule());
-            } else if (childNode instanceof com.excelutility.core.expression.GroupNode) {
-                com.excelutility.core.expression.GroupNode childGroupNode = (com.excelutility.core.expression.GroupNode) childNode;
-                ActionListener deleteListener = event -> {
-                    LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
-                    uiGroup.removeComponent(sourceGroup);
-                };
-                ActionListener changeListener = ev -> updateFilterResults();
-                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener, changeListener);
-                newUiGroup.getAddRuleButton().addActionListener(e -> createFilterFromSelection(newUiGroup));
-                newUiGroup.getPreviewButton().addActionListener(e -> previewGroup(newUiGroup));
-                uiGroup.addComponent(newUiGroup);
-                populateGroupFromNode(newUiGroup, childGroupNode);
-            }
-        }
+        // This will be replaced by the new profile management UI
+        JOptionPane.showMessageDialog(this, "Load Profile is not yet fully implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void manageProfiles() {

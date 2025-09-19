@@ -228,8 +228,8 @@ public class FilteringService {
         return count;
     }
 
-    public java.util.Map<String, List<List<Object>>> filterMultiple(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions) throws IOException, InvalidFormatException {
-        java.util.Map<String, List<List<Object>>> results = new java.util.HashMap<>();
+    public java.util.Map<String, List<List<Object>>> filterMultiple(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions) throws IOException, org.apache.poi.openxml4j.exceptions.InvalidFormatException {
+        java.util.Map<String, List<List<Object>>> results = new java.util.LinkedHashMap<>();
         List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
         if (allData.isEmpty()) {
             return results;
@@ -247,8 +247,8 @@ public class FilteringService {
         for (java.util.Map.Entry<String, com.excelutility.core.expression.FilterExpression> entry : expressions.entrySet()) {
             String name = entry.getKey();
             com.excelutility.core.expression.FilterExpression expression = entry.getValue();
-            List<List<Object>> filteredRows = new ArrayList<>();
-            filteredRows.add(new ArrayList<>(header));
+            List<List<Object>> filteredRows = new java.util.ArrayList<>();
+            filteredRows.add(new java.util.ArrayList<>(header));
 
             for (List<Object> row : dataRows) {
                 if (expression.evaluate(row, header, this)) {
