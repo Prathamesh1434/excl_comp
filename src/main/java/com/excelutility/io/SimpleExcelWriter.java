@@ -6,8 +6,6 @@ import com.excelutility.core.MismatchType;
 import com.excelutility.core.RowComparisonStatus;
 import com.excelutility.core.RowResult;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFCellStyle;
-import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
@@ -34,13 +32,13 @@ public class SimpleExcelWriter {
                 for (Object field : rowData) {
                     Cell cell = row.createCell(colNum++);
                     if (field instanceof String) {
-                        cell.setCellValue((String) field);
+                        cell.setCellValue(sanitizeCellValue(field));
                     } else if (field instanceof Integer) {
                         cell.setCellValue((Integer) field);
                     } else if (field instanceof Double) {
                         cell.setCellValue((Double) field);
                     } else {
-                        cell.setCellValue(field != null ? field.toString() : "");
+                        cell.setCellValue(sanitizeCellValue(field));
                     }
                 }
             }
@@ -168,6 +166,16 @@ public class SimpleExcelWriter {
         return style;
     }
 
+    private static String sanitizeCellValue(Object value) {
+        if (value == null) {
+            return "";
+        }
+        String s = value.toString();
+        // POI's streaming XML writer will escape characters for us, but we should remove illegal control characters.
+        // Allowed characters are tab, newline, and carriage return. All others below 0x20 are illegal.
+        return s.replaceAll("[\\p{Cntrl}&&[^\t\n\r]]", "");
+    }
+
     public static String sanitizeSheetName(String name) {
         String sanitized = name.replaceAll("[\\\\/*?\\[\\]:]", "_");
         if (sanitized.length() > 31) {
@@ -177,97 +185,122 @@ public class SimpleExcelWriter {
     }
 
     public static void writeFilteredResults(String baseFilePath, Map<String, List<List<Object>>> filteredData, boolean mergeInOneFile, java.awt.Color rowColor) throws IOException {
-        if (mergeInOneFile) {
-            try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) { // keep 100 rows in memory, exceeding rows will be flushed to disk
-                for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
-                    writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
-                }
-                try (FileOutputStream outputStream = new FileOutputStream(baseFilePath)) {
-                    workbook.write(outputStream);
-                }
-                workbook.dispose();
-            }
-        } else {
-            File baseFile = new File(baseFilePath);
-            String parentDir = baseFile.getParent();
-            String baseName = baseFile.getName();
-            String extension = "";
-            int i = baseName.lastIndexOf('.');
-            if (i > 0) {
-                extension = baseName.substring(i);
-                baseName = baseName.substring(0, i);
-            }
+        // This method now always merges into one file as per the new requirements.
+        // The boolean `mergeInOneFile` is kept for signature compatibility but is effectively ignored.
 
+        try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) { // keep 100 rows in memory
+            java.util.Set<List<Object>> unifiedDataRows = new java.util.LinkedHashSet<>();
+            List<Object> header = null;
+
+            // First, populate all the group-specific sheets and collect unified data
             for (Map.Entry<String, List<List<Object>>> entry : filteredData.entrySet()) {
-                String fileName = String.format("%s_%s%s", baseName, entry.getKey(), extension);
-                File outputFile = new File(parentDir, fileName);
-                try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-                    writeSheet(workbook, entry.getKey(), entry.getValue(), rowColor);
-                    try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
-                        workbook.write(outputStream);
+                List<List<Object>> sheetData = entry.getValue();
+                if (!sheetData.isEmpty()) {
+                    if (header == null) {
+                        header = sheetData.get(0); // Capture header from the first available sheet
+                    }
+                    // Add data rows (skip header) to the unified set
+                    for (int i = 1; i < sheetData.size(); i++) {
+                        unifiedDataRows.add(sheetData.get(i));
                     }
                 }
+                // Write the individual group sheet
+                writeSheet(workbook, sanitizeSheetName(entry.getKey()), sheetData, rowColor);
+            }
+
+            // Now, create the "Unified" sheet
+            if (header != null) {
+                List<List<Object>> unifiedSheetData = new java.util.ArrayList<>();
+                unifiedSheetData.add(header);
+                unifiedSheetData.addAll(unifiedDataRows);
+                writeSheet(workbook, "Unified", unifiedSheetData, null); // No color for unified sheet
+            }
+
+            // Write the complete workbook to a file
+            try (FileOutputStream outputStream = new FileOutputStream(baseFilePath)) {
+                workbook.write(outputStream);
+            } catch (Exception e) {
+                throw new IOException("Failed to write workbook to file: " + e.getMessage(), e);
+            } finally {
+                workbook.dispose(); // Important for SXSSFWorkbook
             }
         }
     }
 
-    private static void writeSheet(Workbook workbook, String sheetName, List<List<Object>> data, java.awt.Color rowColor) {
+    private static void writeSheet(Workbook workbook, String sheetName, List<List<Object>> data, java.awt.Color highlightColor) {
         Sheet sheet = workbook.createSheet(sheetName);
         if (sheet instanceof SXSSFSheet) {
             ((SXSSFSheet) sheet).trackAllColumnsForAutoSizing();
         }
 
-        XSSFWorkbook xssfWorkbook;
-        if (workbook instanceof SXSSFWorkbook) {
-            xssfWorkbook = ((SXSSFWorkbook) workbook).getXSSFWorkbook();
-        } else {
-            xssfWorkbook = (XSSFWorkbook) workbook;
-        }
-        CellStyle rowStyle = createStyleWithColor(xssfWorkbook, rowColor);
-
-        // Write header
-        if (data.isEmpty()) {
-            Row row = sheet.createRow(0);
-            row.createCell(0).setCellValue("No rows matched this filter.");
+        // Handle empty data case cleanly
+        if (data == null || data.isEmpty()) {
+            sheet.createRow(0).createCell(0).setCellValue("No data for this sheet.");
             return;
         }
 
+        CellStyle highlightStyle = null;
+        if (highlightColor != null) {
+            // All workbooks in this context are SXSSF, so this is safe.
+            XSSFWorkbook xssfWorkbook = ((SXSSFWorkbook) workbook).getXSSFWorkbook();
+            highlightStyle = createStyleWithColor(xssfWorkbook, highlightColor);
+        }
+
+        // Write header
         Row headerRow = sheet.createRow(0);
-        int colNum = 0;
-        for (Object field : data.get(0)) {
-            Cell cell = headerRow.createCell(colNum++);
-            cell.setCellValue(field != null ? field.toString() : "");
+        List<Object> headerData = data.get(0);
+        for (int i = 0; i < headerData.size(); i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(sanitizeCellValue(headerData.get(i)));
         }
 
         // Write data rows
         if (data.size() > 1) {
             for (int i = 1; i < data.size(); i++) {
                 Row row = sheet.createRow(i);
-                colNum = 0;
-                for (Object field : data.get(i)) {
-                    Cell cell = row.createCell(colNum++);
-                    if (field instanceof String) {
-                        cell.setCellValue((String) field);
-                    } else if (field instanceof Integer) {
-                        cell.setCellValue((Integer) field);
-                    } else if (field instanceof Double) {
-                        cell.setCellValue((Double) field);
-                    } else {
-                        cell.setCellValue(field != null ? field.toString() : "");
+                List<Object> rowData = data.get(i);
+                for (int j = 0; j < rowData.size(); j++) {
+                    Cell cell = row.createCell(j);
+                    Object value = rowData.get(j);
+                    // Use a helper to set cell value by type
+                    setCellValue(cell, value);
+                    if (highlightStyle != null) {
+                        cell.setCellStyle(highlightStyle);
                     }
-                    cell.setCellStyle(rowStyle);
                 }
             }
         } else {
-            // No data rows, write a message
-            Row row = sheet.createRow(1);
-            row.createCell(0).setCellValue("No rows matched this filter.");
+            // If there's only a header, it means no data rows matched.
+            sheet.createRow(1).createCell(0).setCellValue("No rows matched the filter criteria.");
         }
 
+        // Autosize columns, but only if there is a header
+        if (!headerData.isEmpty()) {
+            for (int i = 0; i < headerData.size(); i++) {
+                sheet.autoSizeColumn(i);
+            }
+        }
+    }
 
-        // Autosize columns
-        for (int i = 0; i < data.get(0).size(); i++) {
-            sheet.autoSizeColumn(i);
+    private static void setCellValue(Cell cell, Object value) {
+        if (value == null) {
+            cell.setCellValue("");
+            return;
+        }
+        if (value instanceof String) {
+            cell.setCellValue(sanitizeCellValue(value));
+        } else if (value instanceof Integer) {
+            cell.setCellValue((Integer) value);
+        } else if (value instanceof Long) {
+            cell.setCellValue((Long) value);
+        } else if (value instanceof Double) {
+            cell.setCellValue((Double) value);
+        } else if (value instanceof java.util.Date) {
+            cell.setCellValue((java.util.Date) value);
+        } else if (value instanceof Boolean) {
+            cell.setCellValue((Boolean) value);
+        } else {
+            cell.setCellValue(sanitizeCellValue(value.toString()));
         }
     }
 }

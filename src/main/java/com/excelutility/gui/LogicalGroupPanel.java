@@ -33,23 +33,55 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         private final JRadioButton andButton;
         private final JRadioButton orButton;
 
-        public OperatorPanel(ActionListener changeListener) {
-            super(new FlowLayout(FlowLayout.CENTER, 5, 0));
-            setBackground(new Color(255, 255, 224)); // Pale Yellow
-            andButton = new JRadioButton("AND");
-            andButton.setBackground(getBackground());
-            orButton = new JRadioButton("OR");
-            orButton.setBackground(getBackground());
+        public enum OperatorType { RULE, GROUP }
 
-            if (changeListener != null) {
-                andButton.addActionListener(changeListener);
-                orButton.addActionListener(changeListener);
+        public OperatorPanel(ActionListener changeListener, OperatorType type) {
+            super(new FlowLayout(FlowLayout.CENTER, 5, 0));
+
+            andButton = new JRadioButton("AND");
+            orButton = new JRadioButton("OR");
+
+            ActionListener listener = e -> {
+                if (changeListener != null) {
+                    changeListener.actionPerformed(e);
+                }
+            };
+            andButton.addActionListener(listener);
+            orButton.addActionListener(listener);
+
+            ButtonGroup buttonGroup = new ButtonGroup();
+            buttonGroup.add(andButton);
+            buttonGroup.add(orButton);
+            andButton.setSelected(true);
+
+            Color andColor, orColor;
+            if (type == OperatorType.RULE) {
+                // Rule-level operators: Green for AND, Yellow for OR
+                andColor = new Color(0x2F8F6D);
+                orColor = new Color(0xF2C94C);
+            } else {
+                // Group-level operators: Blue for AND, Purple for OR
+                andColor = new Color(0x2B7BDE);
+                orColor = new Color(0x8E44AD);
             }
 
-            ButtonGroup group = new ButtonGroup();
-            group.add(andButton);
-            group.add(orButton);
-            andButton.setSelected(true); // Default to AND
+            // Set initial color
+            setBackground(andColor);
+            andButton.setBackground(andColor);
+            orButton.setBackground(andColor);
+
+            // Add listeners to change color on selection
+            andButton.addActionListener(e -> {
+                setBackground(andColor);
+                andButton.setBackground(andColor);
+                orButton.setBackground(andColor);
+            });
+            orButton.addActionListener(e -> {
+                setBackground(orColor);
+                andButton.setBackground(orColor);
+                orButton.setBackground(orColor);
+            });
+
             add(andButton);
             add(orButton);
         }
@@ -116,7 +148,8 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         }
         // Add an operator panel if this is not the first component
         if (contentPanel.getComponentCount() > 0) {
-            contentPanel.add(new OperatorPanel(this.changeListener), "growx, align center");
+            OperatorPanel.OperatorType type = (component instanceof FilterRulePanel) ? OperatorPanel.OperatorType.RULE : OperatorPanel.OperatorType.GROUP;
+            contentPanel.add(new OperatorPanel(this.changeListener, type), "growx, align center");
         }
         contentPanel.add(component, "growx");
         revalidateAndRepaint();

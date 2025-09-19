@@ -27,20 +27,25 @@ public class SimpleExcelWriterTest {
         String filePath = "target/test-files/filtered-results-test.xlsx";
         new File(filePath).getParentFile().mkdirs();
 
+        // The input data should only contain the group-specific results.
+        // The "Unified" sheet is generated automatically by the writer.
         Map<String, List<List<Object>>> data = new LinkedHashMap<>();
-        List<List<Object>> unifiedData = new ArrayList<>();
-        unifiedData.add(List.of("Header1", "Header2"));
-        unifiedData.add(List.of("UnifiedData1", 1));
-        data.put("Unified_Result", unifiedData);
 
         List<List<Object>> group1Data = new ArrayList<>();
         group1Data.add(List.of("Header1", "Header2"));
         group1Data.add(List.of("Group1Data1", 2));
-        data.put("Group_1_TestGroup", group1Data);
+        group1Data.add(List.of("CommonData", 100));
+        data.put("Group 1", group1Data);
+
+        List<List<Object>> group2Data = new ArrayList<>();
+        group2Data.add(List.of("Header1", "Header2"));
+        group2Data.add(List.of("Group2Data1", 3));
+        group2Data.add(List.of("CommonData", 100)); // This is a duplicate row
+        data.put("Group 2", group2Data);
 
         List<List<Object>> emptyGroupData = new ArrayList<>();
         emptyGroupData.add(List.of("Header1", "Header2"));
-        data.put("Group_2_EmptyGroup", emptyGroupData);
+        data.put("Empty Group", emptyGroupData);
 
         SimpleExcelWriter.writeFilteredResults(filePath, data, true, Color.YELLOW);
 
@@ -48,16 +53,28 @@ public class SimpleExcelWriterTest {
         assertTrue(file.exists());
 
         try (Workbook workbook = WorkbookFactory.create(file)) {
-            assertEquals(3, workbook.getNumberOfSheets());
-            assertEquals("Unified_Result", workbook.getSheetName(0));
-            assertEquals("Group_1_TestGroup", workbook.getSheetName(1));
-            assertEquals("Group_2_EmptyGroup", workbook.getSheetName(2));
+            // We expect 4 sheets: Group 1, Group 2, Empty Group, and the auto-generated Unified sheet.
+            assertEquals(4, workbook.getNumberOfSheets());
+            assertEquals("Group 1", workbook.getSheetName(0));
+            assertEquals("Group 2", workbook.getSheetName(1));
+            assertEquals("Empty Group", workbook.getSheetName(2));
+            assertEquals("Unified", workbook.getSheetName(3));
 
-            Sheet unifiedSheet = workbook.getSheetAt(0);
-            assertEquals("UnifiedData1", unifiedSheet.getRow(1).getCell(0).getStringCellValue());
+            // Check the unified sheet. It should contain 3 data rows (the duplicate is removed).
+            Sheet unifiedSheet = workbook.getSheet("Unified");
+            assertNotNull(unifiedSheet);
+            assertEquals(3, unifiedSheet.getLastRowNum()); // 3 data rows + 1 header row = 4 rows total, so last row num is 3.
 
-            Sheet emptySheet = workbook.getSheetAt(2);
-            assertEquals("No rows matched this filter.", emptySheet.getRow(1).getCell(0).getStringCellValue());
+            // Check that a group-specific sheet is colored
+            Sheet group1Sheet = workbook.getSheet("Group 1");
+            assertNotNull(group1Sheet.getRow(1).getCell(0).getCellStyle());
+
+            // Check that the unified sheet is not colored
+            assertNotNull(unifiedSheet.getRow(1).getCell(0).getCellStyle()); // Style should exist
+            assertEquals(64, unifiedSheet.getRow(1).getCell(0).getCellStyle().getFillForegroundColor()); // 64 is the index for default/automatic color
+
+            Sheet emptySheet = workbook.getSheet("Empty Group");
+            assertEquals("No rows matched the filter criteria.", emptySheet.getRow(1).getCell(0).getStringCellValue());
         }
 
         file.delete();

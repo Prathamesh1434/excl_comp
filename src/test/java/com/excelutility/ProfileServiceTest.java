@@ -28,14 +28,15 @@ public class ProfileServiceTest {
         profile.setIgnoreCase(true);
 
         String profileName = "my-test-profile";
-        service.saveProfile(profile, profileName);
+        // The profile ID is not properly handled here yet.
+        service.saveProfile(profile, profileName, profileName);
 
         // Test saving
         File savedFile = new File(testDir, profileName + ".json");
         assertTrue(savedFile.exists());
 
         // Test loading
-        ComparisonProfile loadedProfile = service.loadProfile(profileName);
+        ComparisonProfile loadedProfile = service.loadProfile(profileName, ComparisonProfile.class);
         assertNotNull(loadedProfile);
         assertEquals("test.xlsx", loadedProfile.getSourceFilePath());
         assertTrue(loadedProfile.isIgnoreCase());

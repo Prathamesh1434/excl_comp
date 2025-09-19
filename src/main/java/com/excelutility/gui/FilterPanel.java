@@ -1,9 +1,11 @@
 package com.excelutility.gui;
 
+import com.excelutility.core.FilterProfile;
 import com.excelutility.core.FilterRule;
 import com.excelutility.core.FilteringService;
 import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.io.ExcelReader;
+import com.excelutility.io.ProfileService;
 import com.excelutility.io.SimpleExcelWriter;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -44,7 +46,7 @@ public class FilterPanel extends JPanel {
 
     private Color selectedColor = Color.YELLOW;
     private final AppContainer appContainer;
-    private final Map<String, Component> openPreviewTabs = new java.util.HashMap<>();
+    private final ProfileService profileService = new ProfileService(ProfileService.FILTER_PROFILES_DIR);
 
     public FilterPanel(AppContainer appContainer) {
         this.appContainer = appContainer;
@@ -119,27 +121,22 @@ public class FilterPanel extends JPanel {
         // --- Action Listeners ---
         previewButton.addActionListener(e -> loadPreviews());
         colorButton.addActionListener(e -> chooseColor());
-        downloadButton.addActionListener(e -> promptAndSaveResults());
+        downloadButton.addActionListener(e -> startMultiSheetExportProcess());
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
 
         addGroupButton.addActionListener(e -> {
             LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
-            ActionListener changeListener = ev -> updateFilterResults();
             ActionListener deleteListener = event -> {
                 LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
                 rootGroup.removeComponent(sourceGroup);
                 updateFilterResults();
             };
             String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener, changeListener);
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener, ev -> updateFilterResults());
             newGroup.getAddRuleButton().addActionListener(ev -> createFilterFromSelection(newGroup));
-            newGroup.getPreviewButton().addActionListener(ev -> previewGroup(newGroup));
             rootGroup.addComponent(newGroup);
-            updateGroupCount(newGroup);
         });
-
-        filterExpressionBuilderPanel.getRootGroup().getPreviewButton().addActionListener(e -> previewGroup(filterExpressionBuilderPanel.getRootGroup()));
 
         filterExpressionBuilderPanel.getRootGroup().getAddRuleButton().addActionListener(ev -> createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup()));
 
@@ -180,40 +177,8 @@ public class FilterPanel extends JPanel {
         }
     }
 
-    public void updateFilterResults() {
+    void updateFilterResults() {
         startFilterProcess(ProcessDestination.VIEW);
-        for (LogicalGroupPanel group : filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels()) {
-            updateGroupCount(group);
-        }
-    }
-
-    private void updateGroupCount(LogicalGroupPanel groupPanel) {
-        String dataFilePath = dataFilePanel.getFilePath();
-        String sheetName = dataFilePanel.getSelectedSheet();
-        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
-            return;
-        }
-
-        new SwingWorker<Integer, Void>() {
-            @Override
-            protected Integer doInBackground() throws Exception {
-                return filteringService.getMatchCount(dataFilePath, sheetName, dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), groupPanel.getExpression());
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    groupPanel.setRecordCount(get());
-                } catch (Exception e) {
-                    groupPanel.setRecordCount(-1);
-                }
-            }
-        }.execute();
-    }
-
-    public void previewGroup(LogicalGroupPanel groupPanel) {
-        String tabTitle = groupPanel.getName();
-        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, tabTitle);
     }
 
     private void startFilterProcess(ProcessDestination destination) {
@@ -221,9 +186,7 @@ public class FilterPanel extends JPanel {
         String dataFilePath = dataFilePanel.getFilePath();
         String sheetName = dataFilePanel.getSelectedSheet();
         if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
-            if (destination != ProcessDestination.CALCULATE_ONLY) {
-                JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
-            }
+            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -232,6 +195,7 @@ public class FilterPanel extends JPanel {
         new SwingWorker<List<List<Object>>, Void>() {
             @Override
             protected List<List<Object>> doInBackground() throws Exception {
+                // This method is now only used for VIEW and CALCULATE, which apply to the whole expression.
                 return filteringService.filter(dataFilePath, sheetName, dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), expression);
             }
 
@@ -244,22 +208,15 @@ public class FilterPanel extends JPanel {
                     totalMatchesLabel.setText("Total Matches: " + recordCount);
 
                     if (destination == ProcessDestination.CALCULATE_ONLY) {
-                        return;
+                        return; // Stop here for calculations
                     }
 
-                    if (recordCount == 0 && destination != ProcessDestination.VIEW) {
-                        JOptionPane.showMessageDialog(FilterPanel.this, "No records match the filter criteria.", "No Matches", JOptionPane.INFORMATION_MESSAGE);
-                        return;
-                    }
-
-                    List<String> allColumns = dataFilePanel.getColumnNames();
-                    List<String> selectedColumns = allColumns;
-
-                    List<List<Object>> resultData = projectColumns(filteredData, selectedColumns);
-
+                    // For VIEW, we update the main preview tab.
                     if (destination == ProcessDestination.VIEW) {
-                        updateUnifiedViewTab(resultData, selectedColumns);
+                        List<String> allColumns = dataFilePanel.getColumnNames();
+                        updateUnifiedViewTab(filteredData, allColumns);
                     }
+
                 } catch (Exception e) {
                     logger.error("Filtering process failed.", e);
                     totalMatchesLabel.setText("Total Matches: Error");
@@ -295,12 +252,11 @@ public class FilterPanel extends JPanel {
     }
 
     public void previewRule(FilterRulePanel rulePanel) {
-        String tabTitle = rulePanel.getRuleName() + " - " + rulePanel.getRule().getDescriptiveName();
-        // To prevent overly long tab titles, truncate if necessary
-        if (tabTitle.length() > 30) {
-            tabTitle = tabTitle.substring(0, 27) + "...";
-        }
-        runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, tabTitle);
+        runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, rulePanel.getRuleName() + " Preview");
+    }
+
+    public void previewGroup(LogicalGroupPanel groupPanel) {
+        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, groupPanel.getName() + " Preview");
     }
 
     private void runPreviewFilter(FilterExpression expression, java.util.function.Consumer<Integer> countConsumer, String tabTitle) {
@@ -323,7 +279,11 @@ public class FilterPanel extends JPanel {
                     List<List<Object>> resultData = get();
                     int recordCount = resultData.isEmpty() ? 0 : resultData.size() - 1;
                     countConsumer.accept(recordCount);
-                    addPreviewTab(tabTitle, resultData);
+                    if (recordCount > 0) {
+                        addPreviewTab(tabTitle, resultData);
+                    } else {
+                        JOptionPane.showMessageDialog(FilterPanel.this, "No records match the preview criteria.", "No Matches", JOptionPane.INFORMATION_MESSAGE);
+                    }
                 } catch (Exception e) {
                     logger.error("Preview filtering process failed.", e);
                     countConsumer.accept(-1);
@@ -334,28 +294,13 @@ public class FilterPanel extends JPanel {
     }
 
     private void addPreviewTab(String title, List<List<Object>> data) {
-        // If a tab with this title already exists, just focus it.
-        if (openPreviewTabs.containsKey(title)) {
-            unifiedDataViewTabs.setSelectedComponent(openPreviewTabs.get(title));
-            return;
-        }
-
         JPanel contentPanel = new JPanel(new BorderLayout());
         JTable table = new JTable();
         configureTable(table);
         JScrollPane scrollPane = new JScrollPane(table);
         contentPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // Handle case where there are no results
-        if (data.isEmpty() || data.size() <= 1) {
-            DefaultTableModel model = new DefaultTableModel();
-            if(!data.isEmpty()){ // Has headers but no rows
-                 Vector<String> headers = data.get(0).stream().map(Object::toString).collect(Collectors.toCollection(Vector::new));
-                 model.setColumnIdentifiers(headers);
-            }
-            model.addRow(new Vector<>() {{ add("No rows matched"); }});
-            table.setModel(model);
-        } else {
+        if (!data.isEmpty()) {
             Vector<String> headers = data.get(0).stream().map(Object::toString).collect(Collectors.toCollection(Vector::new));
             Vector<Vector<Object>> dataVector = new Vector<>();
             for (int i = 1; i < data.size(); i++) {
@@ -378,93 +323,74 @@ public class FilterPanel extends JPanel {
         unifiedDataViewTabs.insertTab(title, null, contentPanel, "Preview for " + title, tabIndex);
         unifiedDataViewTabs.setTabComponentAt(tabIndex, tabComponent);
         unifiedDataViewTabs.setSelectedIndex(tabIndex);
-
-        openPreviewTabs.put(title, contentPanel);
-
-        closeButton.addActionListener(e -> {
-            unifiedDataViewTabs.remove(contentPanel);
-            openPreviewTabs.remove(title);
-        });
+        closeButton.addActionListener(e -> unifiedDataViewTabs.remove(contentPanel));
     }
 
-    private void promptAndSaveResults() {
+    private void startMultiSheetExportProcess() {
+        String dataFilePath = dataFilePanel.getFilePath();
+        String sheetName = dataFilePanel.getSelectedSheet();
+        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
+            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 1. Gather all expressions from the UI
+        Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
+        for (LogicalGroupPanel groupPanel : filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels()) {
+            expressions.put(groupPanel.getName(), groupPanel.getExpression());
+        }
+
+        if (expressions.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No filter groups to export.", "Export Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 2. Prompt user for save location
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Save Filtered Results Workbook");
+        chooser.setDialogTitle("Save Multi-Sheet Export");
         chooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
-        String timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date());
-        chooser.setSelectedFile(new File("FilteredResults_" + timestamp + ".xlsx"));
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 
         if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File fileToSave = chooser.getSelectedFile();
             String filePath = fileToSave.getAbsolutePath();
             if (!filePath.toLowerCase().endsWith(".xlsx")) {
-                filePath = filePath + ".xlsx";
+                filePath += ".xlsx";
             }
             final String finalFilePath = filePath;
 
-            // Gather all expressions
-            Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
-            expressions.put("Unified_Result", filterExpressionBuilderPanel.getRootGroup().getExpression());
-            List<LogicalGroupPanel> groups = filterExpressionBuilderPanel.getRootGroup().getAllGroupPanels();
-            groups.remove(filterExpressionBuilderPanel.getRootGroup()); // Exclude the root group itself
-            for (int i = 0; i < groups.size(); i++) {
-                LogicalGroupPanel group = groups.get(i);
-                String safeName = SimpleExcelWriter.sanitizeSheetName("Group_" + (i + 1) + "_" + group.getName());
-                expressions.put(safeName, group.getExpression());
-            }
-
-            logger.info("ExportStart: file={}, groupsCount={}, totalRows=?", finalFilePath, expressions.size() -1);
-
-            new SwingWorker<Map<String, List<List<Object>>>, Void>() {
+            // 3. Run filtering and writing in a background thread
+            new SwingWorker<Void, Void>() {
                 @Override
-                protected Map<String, List<List<Object>>> doInBackground() throws Exception {
-                    return filteringService.filterMultiple(dataFilePanel.getFilePath(), dataFilePanel.getSelectedSheet(), dataFilePanel.getHeaderRowIndices(), dataFilePanel.getConcatenationMode(), expressions);
+                protected Void doInBackground() throws Exception {
+                    // 4. Call the filtering service
+                    Map<String, List<List<Object>>> filteredData = filteringService.filterMultiple(
+                            dataFilePath,
+                            sheetName,
+                            dataFilePanel.getHeaderRowIndices(),
+                            dataFilePanel.getConcatenationMode(),
+                            expressions
+                    );
+
+                    // 5. Call the writer
+                    SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
+                    return null;
                 }
 
                 @Override
                 protected void done() {
-                    long startTime = System.currentTimeMillis();
                     try {
-                        Map<String, List<List<Object>>> results = get();
-                        SimpleExcelWriter.writeFilteredResults(finalFilePath, results, true, selectedColor);
-                        long duration = System.currentTimeMillis() - startTime;
-                        logger.info("ExportComplete: duration={}ms", duration);
-                        JOptionPane.showMessageDialog(FilterPanel.this, "Results exported successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                        get(); // Check for exceptions
+                        JOptionPane.showMessageDialog(FilterPanel.this, "Multi-sheet export completed successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
                     } catch (Exception e) {
-                        logger.error("Export failed.", e);
-                        JOptionPane.showMessageDialog(FilterPanel.this, "Failed to export results: " + e.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+                        logger.error("Multi-sheet export failed.", e);
+                        JOptionPane.showMessageDialog(FilterPanel.this, "Failed to export results: " + e.getCause().getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
                     }
                 }
             }.execute();
         }
     }
 
-    private List<List<Object>> projectColumns(List<List<Object>> data, List<String> columnsToKeep) {
-        if (data.isEmpty() || columnsToKeep.isEmpty()) {
-            return data;
-        }
-        List<List<Object>> projectedData = new ArrayList<>();
-        List<String> originalHeader = data.get(0).stream().map(Object::toString).collect(Collectors.toList());
-        List<Integer> indicesToKeep = new ArrayList<>();
-        List<Object> newHeader = new ArrayList<>();
-        for (String column : columnsToKeep) {
-            int index = originalHeader.indexOf(column);
-            if (index != -1) {
-                indicesToKeep.add(index);
-                newHeader.add(column);
-            }
-        }
-        projectedData.add(newHeader);
-        for (int i = 1; i < data.size(); i++) {
-            List<Object> originalRow = data.get(i);
-            List<Object> projectedRow = new ArrayList<>();
-            for (int index : indicesToKeep) {
-                projectedRow.add(index < originalRow.size() ? originalRow.get(index) : null);
-            }
-            projectedData.add(projectedRow);
-        }
-        return projectedData;
-    }
 
     private void createFilterFromSelection(LogicalGroupPanel targetGroup) {
         int[] selectedRows = filterValuesPreviewTable.getSelectedRows();
@@ -537,13 +463,89 @@ public class FilterPanel extends JPanel {
     }
 
     private void saveProfile() {
-        // This will be replaced by the new profile management UI
-        JOptionPane.showMessageDialog(this, "Save Profile is not yet fully implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
+        FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
+        FilterProfile profile = new FilterProfile(expression);
+
+        SaveProfileDialog dialog = new SaveProfileDialog((Frame) SwingUtilities.getWindowAncestor(this));
+        dialog.setVisible(true);
+
+        if (dialog.isConfirmed()) {
+            String profileName = dialog.getProfileName();
+            boolean includeFilePaths = dialog.shouldSaveFilePaths();
+
+            if (!includeFilePaths) {
+                // This part of the profile is not yet implemented, so we just log it.
+                // In a real implementation, you would null out the file path properties of the profile.
+                logger.info("User chose to not include file paths. This feature is not fully implemented yet.");
+            }
+
+            try {
+                String profileId = profileName.trim().replaceAll("[^a-zA-Z0-9.-]", "_");
+                profileService.saveProfile(profile, profileId, profileName);
+                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException e) {
+                logger.error("Failed to save filter profile: {}", profileName, e);
+                JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private void loadProfile() {
-        // This will be replaced by the new profile management UI
-        JOptionPane.showMessageDialog(this, "Load Profile is not yet fully implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
+        Map<String, String> profileIndex = profileService.loadProfileIndex();
+        if (profileIndex.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No saved filter profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String[] profileNames = profileIndex.keySet().toArray(new String[0]);
+        String selectedProfileName = (String) JOptionPane.showInputDialog(this, "Select a profile to load:",
+                "Load Filter Profile", JOptionPane.QUESTION_MESSAGE, null, profileNames, profileNames[0]);
+
+        if (selectedProfileName != null) {
+            try {
+                String profileId = profileIndex.get(selectedProfileName);
+                 if (profileId == null) {
+                    throw new IOException("Profile ID not found for " + selectedProfileName);
+                }
+                FilterProfile loadedProfile = profileService.loadProfile(profileId, FilterProfile.class);
+                rebuildUIFromProfile(loadedProfile);
+                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfileName + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException e) {
+                logger.error("Failed to load filter profile: {}", selectedProfileName, e);
+                JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void rebuildUIFromProfile(FilterProfile profile) {
+        filterExpressionBuilderPanel.getRootGroup().removeAll();
+        com.excelutility.core.AutoNamingService.reset();
+        populateGroupFromNode(filterExpressionBuilderPanel.getRootGroup(), (com.excelutility.core.expression.GroupNode) profile.getRootExpression());
+        filterExpressionBuilderPanel.revalidate();
+        filterExpressionBuilderPanel.repaint();
+    }
+
+    private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
+        // This logic needs to be updated to handle the new infix operator model.
+        // For now, we will just load the rules and groups flatly.
+        // A proper implementation would need to parse the expression tree and create OperatorPanels.
+        uiGroup.setBorder(BorderFactory.createTitledBorder(dataNode.getName()));
+
+        for (FilterExpression childNode : dataNode.getChildren()) {
+            if (childNode instanceof com.excelutility.core.expression.RuleNode) {
+                com.excelutility.core.expression.RuleNode ruleNode = (com.excelutility.core.expression.RuleNode) childNode;
+                filterExpressionBuilderPanel.addRuleToGroup(uiGroup, ruleNode.getRule());
+            } else if (childNode instanceof com.excelutility.core.expression.GroupNode) {
+                com.excelutility.core.expression.GroupNode childGroupNode = (com.excelutility.core.expression.GroupNode) childNode;
+                ActionListener deleteListener = event -> {
+                    LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                    uiGroup.removeComponent(sourceGroup);
+                };
+                LogicalGroupPanel newUiGroup = new LogicalGroupPanel(childGroupNode.getName(), deleteListener, ev -> updateFilterResults());
+                newUiGroup.getAddRuleButton().addActionListener(e -> createFilterFromSelection(newUiGroup));
+                uiGroup.addComponent(newUiGroup);
+                populateGroupFromNode(newUiGroup, childGroupNode);
+            }
+        }
     }
 
     private void manageProfiles() {

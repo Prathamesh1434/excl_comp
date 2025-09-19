@@ -3,6 +3,7 @@ package com.excelutility.gui;
 import com.excelutility.io.ProfileService;
 import javax.swing.*;
 import java.awt.*;
+import java.io.IOException;
 
 public class ProfileManagerDialog extends JDialog {
 
@@ -53,8 +54,12 @@ public class ProfileManagerDialog extends JDialog {
 
         int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete the profile '" + selectedProfile + "'?", "Confirm Deletion", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
-            profileService.deleteProfile(selectedProfile);
-            loadProfiles(); // Refresh the list
+            try {
+                profileService.deleteProfile(selectedProfile);
+                loadProfiles(); // Refresh the list
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(this, "Error deleting profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

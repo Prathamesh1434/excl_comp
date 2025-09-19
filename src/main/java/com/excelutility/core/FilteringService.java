@@ -229,33 +229,42 @@ public class FilteringService {
     }
 
     public java.util.Map<String, List<List<Object>>> filterMultiple(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions) throws IOException, org.apache.poi.openxml4j.exceptions.InvalidFormatException {
-        java.util.Map<String, List<List<Object>>> results = new java.util.LinkedHashMap<>();
+        // Read the source data once to avoid repeated file access.
         List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
-        if (allData.isEmpty()) {
-            return results;
+        if (allData.isEmpty() || expressions.isEmpty()) {
+            return new java.util.LinkedHashMap<>();
         }
 
+        // Prepare the header.
         List<String> header;
         try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
             Sheet sheet = workbook.getSheet(sheetName);
             header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
         }
+        List<Object> headerObjectList = new ArrayList<>(header);
 
+        // Initialize the results map, with each sheet containing the header row.
+        java.util.Map<String, List<List<Object>>> results = new java.util.LinkedHashMap<>();
+        for (String name : expressions.keySet()) {
+            List<List<Object>> sheetData = new ArrayList<>();
+            sheetData.add(headerObjectList);
+            results.put(name, sheetData);
+        }
+
+        // Determine where the actual data begins.
         int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
         List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
 
-        for (java.util.Map.Entry<String, com.excelutility.core.expression.FilterExpression> entry : expressions.entrySet()) {
-            String name = entry.getKey();
-            com.excelutility.core.expression.FilterExpression expression = entry.getValue();
-            List<List<Object>> filteredRows = new java.util.ArrayList<>();
-            filteredRows.add(new java.util.ArrayList<>(header));
+        // Process each data row against all expressions.
+        for (List<Object> row : dataRows) {
+            for (java.util.Map.Entry<String, com.excelutility.core.expression.FilterExpression> entry : expressions.entrySet()) {
+                String name = entry.getKey();
+                com.excelutility.core.expression.FilterExpression expression = entry.getValue();
 
-            for (List<Object> row : dataRows) {
                 if (expression.evaluate(row, header, this)) {
-                    filteredRows.add(row);
+                    results.get(name).add(row);
                 }
             }
-            results.put(name, filteredRows);
         }
 
         return results;
