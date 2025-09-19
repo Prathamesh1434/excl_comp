@@ -5,7 +5,8 @@ import com.excelutility.core.FilterRule;
 import com.excelutility.core.FilteringService;
 import com.excelutility.core.expression.FilterExpression;
 import com.excelutility.io.ExcelReader;
-import com.excelutility.io.ProfileService;
+import com.excelutility.core.FilterBuilderState;
+import com.excelutility.io.FilterProfileService;
 import com.excelutility.io.SimpleExcelWriter;
 import net.miginfocom.swing.MigLayout;
 import org.slf4j.Logger;
@@ -16,6 +17,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -46,7 +48,8 @@ public class FilterPanel extends JPanel {
 
     private Color selectedColor = Color.YELLOW;
     private final AppContainer appContainer;
-    private final ProfileService profileService = new ProfileService(ProfileService.FILTER_PROFILES_DIR);
+    private final FilterProfileService filterProfileService = new FilterProfileService();
+    boolean isDirty = false;
 
     public FilterPanel(AppContainer appContainer) {
         this.appContainer = appContainer;
@@ -103,27 +106,40 @@ public class FilterPanel extends JPanel {
         // Action Buttons (Bottom-Right)
         JPanel actionPanel = new JPanel(new MigLayout("wrap 1, fillx, insets 10", "[grow, fill]"));
         actionPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        JButton saveProfileButton = new JButton("Save Profile...");
+        saveProfileButton.setToolTipText("Save the current filter configuration (Ctrl+S)");
+        JButton loadProfileButton = new JButton("Load Profile...");
+        loadProfileButton.setToolTipText("Load a filter configuration from a file (Ctrl+L)");
         JButton addGroupButton = new JButton("Add Group");
         JButton calculateButton = new JButton("Calculate Total");
         JButton viewButton = new JButton("View Overall Result");
         JButton downloadButton = new JButton("Download Filtered Results");
         JButton colorButton = new JButton("Set Highlight Color");
         totalMatchesLabel = new JLabel("Total Matches: N/A");
-        actionPanel.add(addGroupButton);
+        actionPanel.add(loadProfileButton);
+        actionPanel.add(saveProfileButton);
+        actionPanel.add(addGroupButton, "gaptop 10");
         actionPanel.add(calculateButton, "gaptop 10");
         actionPanel.add(viewButton);
         actionPanel.add(totalMatchesLabel, "gaptop 5");
         actionPanel.add(downloadButton, "gaptop 10");
         actionPanel.add(colorButton);
+
+        JButton exitButton = new JButton("Exit");
+        actionPanel.add(exitButton, "gaptop 20, align right");
+
         mainContentPanel.add(actionPanel, "grow");
 
 
         // --- Action Listeners ---
         previewButton.addActionListener(e -> loadPreviews());
         colorButton.addActionListener(e -> chooseColor());
+        saveProfileButton.addActionListener(e -> saveFilterProfile());
+        loadProfileButton.addActionListener(e -> loadFilterProfile());
         downloadButton.addActionListener(e -> startMultiSheetExportProcess());
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
+        exitButton.addActionListener(e -> exitApplication());
 
         addGroupButton.addActionListener(e -> {
             LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
@@ -131,11 +147,13 @@ public class FilterPanel extends JPanel {
                 LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
                 rootGroup.removeComponent(sourceGroup);
                 updateFilterResults();
+                isDirty = true;
             };
             String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
             LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener, ev -> updateFilterResults());
             newGroup.getAddRuleButton().addActionListener(ev -> createFilterFromSelection(newGroup));
             rootGroup.addComponent(newGroup);
+            isDirty = true;
         });
 
         filterExpressionBuilderPanel.getRootGroup().getAddRuleButton().addActionListener(ev -> createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup()));
@@ -146,6 +164,35 @@ public class FilterPanel extends JPanel {
                 if (e.getClickCount() == 2) {
                     createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup());
                 }
+            }
+        });
+
+        setupKeyboardShortcuts();
+    }
+
+    private void setupKeyboardShortcuts() {
+        InputMap inputMap = this.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = this.getActionMap();
+
+        // Ctrl+S or Cmd+S for Save
+        KeyStroke saveKeyStroke = KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
+                Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        inputMap.put(saveKeyStroke, "saveAction");
+        actionMap.put("saveAction", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                saveFilterProfile();
+            }
+        });
+
+        // Ctrl+L or Cmd+L for Load
+        KeyStroke loadKeyStroke = KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L,
+                Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+        inputMap.put(loadKeyStroke, "loadAction");
+        actionMap.put("loadAction", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                loadFilterProfile();
             }
         });
     }
@@ -179,6 +226,7 @@ public class FilterPanel extends JPanel {
 
     void updateFilterResults() {
         startFilterProcess(ProcessDestination.VIEW);
+        isDirty = true;
     }
 
     private void startFilterProcess(ProcessDestination destination) {
@@ -443,85 +491,108 @@ public class FilterPanel extends JPanel {
         backItem.addActionListener(e -> appContainer.navigateTo("modeSelection"));
         fileMenu.add(backItem);
         fileMenu.addSeparator();
-        JMenuItem saveProfileItem = new JMenuItem("Save Profile As...");
-        saveProfileItem.addActionListener(e -> saveProfile());
-        fileMenu.add(saveProfileItem);
-        JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
-        loadProfileItem.addActionListener(e -> loadProfile());
-        fileMenu.add(loadProfileItem);
-        fileMenu.addSeparator();
         JMenuItem exitItem = new JMenuItem("Exit");
         exitItem.addActionListener(e -> System.exit(0));
         fileMenu.add(exitItem);
         menuBar.add(fileMenu);
-        JMenu editMenu = new JMenu("Edit");
-        JMenuItem profileManagerItem = new JMenuItem("Manage Profiles...");
-        profileManagerItem.addActionListener(e -> manageProfiles());
-        editMenu.add(profileManagerItem);
-        menuBar.add(editMenu);
         return menuBar;
     }
 
-    private void saveProfile() {
-        FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
-        FilterProfile profile = new FilterProfile(expression);
+    private void saveFilterProfile() {
+        String profileName = JOptionPane.showInputDialog(this, "Enter a name for this profile:", "Save Profile", JOptionPane.PLAIN_MESSAGE);
+        if (profileName == null || profileName.trim().isEmpty()) {
+            return;
+        }
 
-        SaveProfileDialog dialog = new SaveProfileDialog((Frame) SwingUtilities.getWindowAncestor(this));
+        try {
+            FilterProfile profile = createProfileFromUI(profileName);
+            filterProfileService.saveProfile(profile);
+            isDirty = false;
+            JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            logger.error("Failed to save profile", e);
+            JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadFilterProfile() {
+        List<File> profiles = filterProfileService.getAvailableProfiles();
+        if (profiles.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        ProfileChooserDialog dialog = new ProfileChooserDialog((Frame) SwingUtilities.getWindowAncestor(this), profiles);
         dialog.setVisible(true);
 
-        if (dialog.isConfirmed()) {
-            String profileName = dialog.getProfileName();
-            boolean includeFilePaths = dialog.shouldSaveFilePaths();
+        File selectedProfileFile = dialog.getSelectedProfile();
+        if (selectedProfileFile == null) {
+            return; // User cancelled
+        }
 
-            if (!includeFilePaths) {
-                // This part of the profile is not yet implemented, so we just log it.
-                // In a real implementation, you would null out the file path properties of the profile.
-                logger.info("User chose to not include file paths. This feature is not fully implemented yet.");
-            }
+        if (dialog.isDeleteRequested()) {
+            handleProfileDeletion(selectedProfileFile);
+        } else {
+            handleProfileLoad(selectedProfileFile);
+        }
+    }
 
+    private void handleProfileLoad(File profileFile) {
+        try {
+            FilterProfile profile = filterProfileService.loadProfile(profileFile);
+            rebuildUIFromProfile(profile);
+            isDirty = false;
+            JOptionPane.showMessageDialog(this, "Profile '" + profile.getProfileName() + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            logger.error("Failed to load profile", e);
+            JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void handleProfileDeletion(File profileFile) {
+        String profileName = profileFile.getName();
+        int response = JOptionPane.showConfirmDialog(this,
+                "This will permanently remove the profile file:\n" + profileName + "\nAre you sure?",
+                "Delete profile \"" + profileName + "\"?",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (response == JOptionPane.YES_OPTION) {
             try {
-                String profileId = profileName.trim().replaceAll("[^a-zA-Z0-9.-]", "_");
-                profileService.saveProfile(profile, profileId, profileName);
-                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' saved successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Failed to save filter profile: {}", profileName, e);
-                JOptionPane.showMessageDialog(this, "Error saving profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                filterProfileService.deleteProfile(profileFile);
+                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' deleted successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception e) {
+                logger.error("Failed to delete profile", e);
+                JOptionPane.showMessageDialog(this, "Error deleting profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
-    private void loadProfile() {
-        Map<String, String> profileIndex = profileService.loadProfileIndex();
-        if (profileIndex.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No saved filter profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        String[] profileNames = profileIndex.keySet().toArray(new String[0]);
-        String selectedProfileName = (String) JOptionPane.showInputDialog(this, "Select a profile to load:",
-                "Load Filter Profile", JOptionPane.QUESTION_MESSAGE, null, profileNames, profileNames[0]);
+    private FilterProfile createProfileFromUI(String profileName) {
+        FilterBuilderState builderState = filterExpressionBuilderPanel.getState();
 
-        if (selectedProfileName != null) {
-            try {
-                String profileId = profileIndex.get(selectedProfileName);
-                 if (profileId == null) {
-                    throw new IOException("Profile ID not found for " + selectedProfileName);
-                }
-                FilterProfile loadedProfile = profileService.loadProfile(profileId, FilterProfile.class);
-                rebuildUIFromProfile(loadedProfile);
-                JOptionPane.showMessageDialog(this, "Profile '" + selectedProfileName + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (IOException e) {
-                logger.error("Failed to load filter profile: {}", selectedProfileName, e);
-                JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
+        return new FilterProfile(
+            profileName,
+            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(new java.util.Date()),
+            dataFilePanel.getFilePath(),
+            dataFilePanel.getSelectedSheet(),
+            filterValuesFilePanel.getFilePath(),
+            filterValuesFilePanel.getSelectedSheet(),
+            builderState
+        );
     }
 
     private void rebuildUIFromProfile(FilterProfile profile) {
-        filterExpressionBuilderPanel.getRootGroup().removeAll();
-        com.excelutility.core.AutoNamingService.reset();
-        populateGroupFromNode(filterExpressionBuilderPanel.getRootGroup(), (com.excelutility.core.expression.GroupNode) profile.getRootExpression());
-        filterExpressionBuilderPanel.revalidate();
-        filterExpressionBuilderPanel.repaint();
+        dataFilePanel.setFileAndSheet(profile.getDataFilePath(), profile.getDataSheet());
+        filterValuesFilePanel.setFileAndSheet(profile.getFilterFilePath(), profile.getFilterSheet());
+
+        filterExpressionBuilderPanel.rebuildFromState(profile.getFilterBuilder());
+
+        // Load previews for the newly set files and update the results based on the new filters
+        loadPreviews();
+        updateFilterResults();
+
+        logger.info("Profile '{}' loaded.", profile.getProfileName());
     }
 
     private void populateGroupFromNode(LogicalGroupPanel uiGroup, com.excelutility.core.expression.GroupNode dataNode) {
@@ -550,6 +621,40 @@ public class FilterPanel extends JPanel {
 
     private void manageProfiles() {
         JOptionPane.showMessageDialog(this, "Profile Manager is not yet implemented.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void exitApplication() {
+        if (isDirty) {
+            String[] options = {"Save & Exit", "Exit without Saving", "Cancel"};
+            int response = JOptionPane.showOptionDialog(this,
+                    "You have unsaved changes to your profile. Do you want to Save before exiting?",
+                    "Exit Application",
+                    JOptionPane.DEFAULT_OPTION,
+                    JOptionPane.WARNING_MESSAGE,
+                    null,
+                    options,
+                    options[0]);
+
+            switch (response) {
+                case 0: // Save & Exit
+                    saveFilterProfile();
+                    // If save was successful, isDirty will be false. We can exit.
+                    // If save was cancelled by user, isDirty will still be true. We don't exit.
+                    if (!isDirty) {
+                        System.exit(0);
+                    }
+                    break;
+                case 1: // Exit without Saving
+                    System.exit(0);
+                    break;
+                case 2: // Cancel
+                default:
+                    // Do nothing
+                    break;
+            }
+        } else {
+            System.exit(0);
+        }
     }
 
     private void loadTableData(FilterFilePanel panel, DefaultTableModel model, int rowLimit, String errorTitle, JTable table, boolean useStreaming) {

@@ -156,4 +156,28 @@ public class FilterFilePanel extends JPanel {
     public String getSelectedSheet() { return sheetCombo.getSelectedItem() != null ? sheetCombo.getSelectedItem().toString() : null; }
     public List<Integer> getHeaderRowIndices() { return headerRowIndices; }
     public ConcatenationMode getConcatenationMode() { return concatenationMode; }
+
+    /**
+     * Sets the file path and selected sheet programmatically, updating the UI.
+     * @param filePath The absolute path to the Excel file.
+     * @param sheetName The name of the sheet to select.
+     */
+    public void setFileAndSheet(String filePath, String sheetName) {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            this.selectedFile = null;
+            fileField.setText("");
+            allSheetNames.clear();
+            filterSheets();
+            return;
+        }
+
+        this.selectedFile = new File(filePath);
+        fileField.setText(filePath);
+        loadAllSheetNames();
+        filterSheets();
+
+        if (sheetName != null) {
+            sheetCombo.setSelectedItem(sheetName);
+        }
+    }
 }
