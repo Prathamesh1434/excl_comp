@@ -11,41 +11,51 @@ import java.util.Objects;
 public class GroupState {
 
     private final String name;
-    private final FilteringService.LogicalOperator operator;
+    private final FilteringService.LogicalOperator intraGroupConnector;
     private final List<RuleState> rules;
-    private final List<GroupState> groups;
+    private final FilteringService.LogicalOperator interGroupConnector;
+    private final String connectorColor;
+    private final long groupRecordCount;
 
     @JsonCreator
     public GroupState(
             @JsonProperty("name") String name,
-            @JsonProperty("operator") FilteringService.LogicalOperator operator,
+            @JsonProperty("intraGroupConnector") FilteringService.LogicalOperator intraGroupConnector,
             @JsonProperty("rules") List<RuleState> rules,
-            @JsonProperty("groups") List<GroupState> groups) {
+            @JsonProperty("interGroupConnector") FilteringService.LogicalOperator interGroupConnector,
+            @JsonProperty("connectorColor") String connectorColor,
+            @JsonProperty("groupRecordCount") long groupRecordCount) {
         this.name = name;
-        this.operator = operator;
+        this.intraGroupConnector = intraGroupConnector;
         this.rules = rules;
-        this.groups = groups;
+        this.interGroupConnector = interGroupConnector;
+        this.connectorColor = connectorColor;
+        this.groupRecordCount = groupRecordCount;
     }
 
     // Getters
     public String getName() { return name; }
-    public FilteringService.LogicalOperator getOperator() { return operator; }
+    public FilteringService.LogicalOperator getIntraGroupConnector() { return intraGroupConnector; }
     public List<RuleState> getRules() { return rules; }
-    public List<GroupState> getGroups() { return groups; }
+    public FilteringService.LogicalOperator getInterGroupConnector() { return interGroupConnector; }
+    public String getConnectorColor() { return connectorColor; }
+    public long getGroupRecordCount() { return groupRecordCount; }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GroupState that = (GroupState) o;
-        return Objects.equals(name, that.name) &&
-                operator == that.operator &&
+        return groupRecordCount == that.groupRecordCount &&
+                Objects.equals(name, that.name) &&
+                intraGroupConnector == that.intraGroupConnector &&
                 Objects.equals(rules, that.rules) &&
-                Objects.equals(groups, that.groups);
+                interGroupConnector == that.interGroupConnector &&
+                Objects.equals(connectorColor, that.connectorColor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, operator, rules, groups);
+        return Objects.hash(name, intraGroupConnector, rules, interGroupConnector, connectorColor, groupRecordCount);
     }
 }

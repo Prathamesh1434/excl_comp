@@ -9,77 +9,46 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public class FilterRule {
 
-    /**
-     * Defines whether the filter source is a specific cell value or a column name.
-     */
-    public enum SourceType {
-        /**
-         * Filter by matching a specific cell's value.
-         */
-        BY_VALUE("Value"),
-        /**
-         * Filter by using the name of a column as the literal value to match against.
-         */
-        BY_COLUMN("Column Name");
-
-        private final String displayName;
-
-        SourceType(String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String getDisplayName() {
-            return displayName;
-        }
-    }
-
-    private final SourceType sourceType;
-    private final String sourceValue;
-    private final String targetColumn;
-    private final boolean trimWhitespace;
+    private final String columnName;
+    private final Operator operator;
+    private final String value;
 
     /**
      * Constructs a new FilterRule.
      *
-     * @param sourceType     The type of filter source (BY_VALUE or BY_COLUMN).
-     * @param sourceValue    The value to filter by (can be a cell value or a column name).
-     * @param targetColumn   The name of the column in the data file to apply the filter on.
-     * @param trimWhitespace If true, whitespace will be trimmed from the target column's values before comparison.
+     * @param columnName     The name of the column in the data file to apply the filter on.
+     * @param operator       The comparison operator.
+     * @param value          The value to filter by.
      */
     @JsonCreator
     public FilterRule(
-            @JsonProperty("sourceType") SourceType sourceType,
-            @JsonProperty("sourceValue") String sourceValue,
-            @JsonProperty("targetColumn") String targetColumn,
-            @JsonProperty("trimWhitespace") boolean trimWhitespace) {
-        this.sourceType = sourceType;
-        this.sourceValue = sourceValue;
-        this.targetColumn = targetColumn;
-        this.trimWhitespace = trimWhitespace;
+            @JsonProperty("columnName") String columnName,
+            @JsonProperty("operator") Operator operator,
+            @JsonProperty("value") String value) {
+        this.columnName = columnName;
+        this.operator = operator;
+        this.value = value;
     }
 
-    public SourceType getSourceType() {
-        return sourceType;
+    public String getColumnName() {
+        return columnName;
     }
 
-    public String getSourceValue() {
-        return sourceValue;
+    public Operator getOperator() {
+        return operator;
     }
 
-    public String getTargetColumn() {
-        return targetColumn;
+    public String getValue() {
+        return value;
     }
 
-    public boolean isTrimWhitespace() {
-        return trimWhitespace;
-    }
 
     @Override
     public String toString() {
         return String.format("Filter on column '%s' %s '%s'",
-                targetColumn,
-                sourceType == SourceType.BY_COLUMN ? "using column name" : "by value",
-                sourceValue);
+                columnName,
+                operator.getSymbol(),
+                value);
     }
 
     /**
@@ -87,10 +56,6 @@ public class FilterRule {
      * @return A descriptive string representation of the rule.
      */
     public String getDescriptiveName() {
-        String baseName = String.format("%s = '%s'", targetColumn, sourceValue);
-        if (sourceType == SourceType.BY_COLUMN) {
-            return baseName + " (from Column)";
-        }
-        return baseName;
+        return String.format("%s %s '%s'", columnName, operator.getSymbol(), value);
     }
 }

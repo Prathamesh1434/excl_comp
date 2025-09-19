@@ -64,8 +64,9 @@ public class FilterExpressionBuilderPanel extends JPanel {
     /**
      * Clears the existing UI and rebuilds it from a saved state.
      * @param state The state to load.
+     * @param availableColumns The list of available column names for dropdowns.
      */
-    public void rebuildFromState(com.excelutility.core.FilterBuilderState state) {
+    public void rebuildFromState(com.excelutility.core.FilterBuilderState state, java.util.List<String> availableColumns) {
         rootGroup.removeAll();
         com.excelutility.core.AutoNamingService.reset();
 
@@ -76,15 +77,21 @@ public class FilterExpressionBuilderPanel extends JPanel {
         }
 
         for (com.excelutility.core.GroupState groupState : state.getGroups()) {
-            ActionListener deleteListener = event -> {
-                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
-                rootGroup.removeComponent(sourceGroup);
-                panelProvider.updateFilterResults();
-            };
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupState.getName(), deleteListener);
+            // Create and configure the group panel
+            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupState.getName(), createDeleteListener());
+            newGroup.setInterGroupConnector(groupState.getInterGroupConnector());
+            newGroup.setConnectorColor(groupState.getConnectorColor());
+            newGroup.setRecordCount(groupState.getGroupRecordCount());
+
+            // Add rules to the group
             for (com.excelutility.core.RuleState ruleState : groupState.getRules()) {
-                addRuleToGroup(newGroup, ruleState.toFilterRule());
+                FilterRulePanel newRulePanel = new FilterRulePanel(ruleState, createDeleteListenerForRule(newGroup), availableColumns);
+                newGroup.addComponent(newRulePanel);
             }
+
+            // Set the intra-group connector
+            newGroup.setIntraGroupConnector(groupState.getIntraGroupConnector());
+
             rootGroup.addComponent(newGroup);
         }
 
@@ -100,19 +107,25 @@ public class FilterExpressionBuilderPanel extends JPanel {
         java.util.List<com.excelutility.core.GroupState> groupStates = new java.util.ArrayList<>();
         for (java.awt.Component comp : rootGroup.getComponents()) {
             if (comp instanceof LogicalGroupPanel) {
-                LogicalGroupPanel groupPanel = (LogicalGroupPanel) comp;
-                java.util.List<com.excelutility.core.RuleState> ruleStates = new java.util.ArrayList<>();
-                for (java.awt.Component ruleComp : groupPanel.getComponents()) {
-                    if (ruleComp instanceof FilterRulePanel) {
-                        FilterRulePanel rulePanel = (FilterRulePanel) ruleComp;
-                        FilterRule rule = rulePanel.getRule();
-                        ruleStates.add(new com.excelutility.core.RuleState(rule.getSourceType(), rule.getSourceValue(), rule.getTargetColumn(), rule.isTrimWhitespace()));
-                    }
-                }
-                // This simplified version doesn't capture the group's logical operator or nested groups.
-                groupStates.add(new com.excelutility.core.GroupState(groupPanel.getName(), com.excelutility.core.FilteringService.LogicalOperator.AND, ruleStates, new java.util.ArrayList<>()));
+                groupStates.add(((LogicalGroupPanel) comp).getGroupState());
             }
         }
         return new com.excelutility.core.FilterBuilderState(groupStates);
+    }
+
+    private ActionListener createDeleteListener() {
+        return event -> {
+            LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+            rootGroup.removeComponent(sourceGroup);
+            panelProvider.updateFilterResults();
+        };
+    }
+
+    private ActionListener createDeleteListenerForRule(LogicalGroupPanel group) {
+        return e -> {
+            FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
+            group.removeComponent(sourcePanel);
+            panelProvider.updateFilterResults();
+        };
     }
 }

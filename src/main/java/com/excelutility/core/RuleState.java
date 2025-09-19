@@ -5,50 +5,61 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
 
 /**
- * A serializable representation of a FilterRule for saving to a profile.
+ * A serializable representation of a FilterRulePanel for saving to a profile.
  */
 public class RuleState {
 
-    private final FilterRule.SourceType sourceType;
-    private final String sourceValue;
-    private final String targetColumn;
-    private final boolean trimWhitespace;
+    private final String name;
+    private final String columnName;
+    private final Operator operator;
+    private final String value;
+    private final FilteringService.LogicalOperator connector;
+    private final String connectorColor;
+    private final long recordCount;
 
     @JsonCreator
     public RuleState(
-            @JsonProperty("sourceType") FilterRule.SourceType sourceType,
-            @JsonProperty("sourceValue") String sourceValue,
-            @JsonProperty("targetColumn") String targetColumn,
-            @JsonProperty("trimWhitespace") boolean trimWhitespace) {
-        this.sourceType = sourceType;
-        this.sourceValue = sourceValue;
-        this.targetColumn = targetColumn;
-        this.trimWhitespace = trimWhitespace;
+            @JsonProperty("name") String name,
+            @JsonProperty("columnName") String columnName,
+            @JsonProperty("operator") Operator operator,
+            @JsonProperty("value") String value,
+            @JsonProperty("connector") FilteringService.LogicalOperator connector,
+            @JsonProperty("connectorColor") String connectorColor,
+            @JsonProperty("recordCount") long recordCount) {
+        this.name = name;
+        this.columnName = columnName;
+        this.operator = operator;
+        this.value = value;
+        this.connector = connector;
+        this.connectorColor = connectorColor;
+        this.recordCount = recordCount;
     }
 
     // Getters
-    public FilterRule.SourceType getSourceType() { return sourceType; }
-    public String getSourceValue() { return sourceValue; }
-    public String getTargetColumn() { return targetColumn; }
-    public boolean isTrimWhitespace() { return trimWhitespace; }
-
-    public FilterRule toFilterRule() {
-        return new FilterRule(sourceType, sourceValue, targetColumn, trimWhitespace);
-    }
+    public String getName() { return name; }
+    public String getColumnName() { return columnName; }
+    public Operator getOperator() { return operator; }
+    public String getValue() { return value; }
+    public FilteringService.LogicalOperator getConnector() { return connector; }
+    public String getConnectorColor() { return connectorColor; }
+    public long getRecordCount() { return recordCount; }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RuleState ruleState = (RuleState) o;
-        return trimWhitespace == ruleState.trimWhitespace &&
-                sourceType == ruleState.sourceType &&
-                Objects.equals(sourceValue, ruleState.sourceValue) &&
-                Objects.equals(targetColumn, ruleState.targetColumn);
+        return recordCount == ruleState.recordCount &&
+                Objects.equals(name, ruleState.name) &&
+                Objects.equals(columnName, ruleState.columnName) &&
+                operator == ruleState.operator &&
+                Objects.equals(value, ruleState.value) &&
+                connector == ruleState.connector &&
+                Objects.equals(connectorColor, ruleState.connectorColor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceType, sourceValue, targetColumn, trimWhitespace);
+        return Objects.hash(name, columnName, operator, value, connector, connectorColor, recordCount);
     }
 }

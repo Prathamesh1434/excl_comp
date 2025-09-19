@@ -476,9 +476,7 @@ public class FilterPanel extends JPanel {
         loadProfileItem.addActionListener(e -> loadFilterProfile());
         fileMenu.add(loadProfileItem);
 
-        JMenuItem deleteProfileItem = new JMenuItem("Delete Profile...");
-        deleteProfileItem.addActionListener(e -> deleteFilterProfile());
-        fileMenu.add(deleteProfileItem);
+        // The delete option is implicitly handled by the ProfileManagerDialog now
 
         fileMenu.addSeparator();
         JMenuItem exitItem = new JMenuItem("Exit");
@@ -495,6 +493,7 @@ public class FilterPanel extends JPanel {
         }
 
         try {
+            // This is the method I will need to implement next. It will gather all state.
             FilterProfile profile = createProfileFromUI(profileName);
             filterProfileService.saveProfile(profile);
             isDirty = false;
@@ -506,106 +505,57 @@ public class FilterPanel extends JPanel {
     }
 
     private void loadFilterProfile() {
-        List<File> profiles = filterProfileService.getAvailableProfiles();
-        if (profiles.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No profiles found.", "Load Profile", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
-        ProfileChooserDialog dialog = new ProfileChooserDialog((Frame) SwingUtilities.getWindowAncestor(this), profiles);
-        dialog.setVisible(true);
-
-        File selectedProfileFile = dialog.getSelectedProfile();
-        if (selectedProfileFile == null) {
-            return; // User cancelled
-        }
-
-        if (dialog.isDeleteRequested()) {
-            handleProfileDeletion(selectedProfileFile);
-        } else {
-            handleProfileLoad(selectedProfileFile);
-        }
-    }
-
-    private void deleteFilterProfile() {
-        List<File> profiles = filterProfileService.getAvailableProfiles();
-        if (profiles.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No profiles to delete.", "Delete Profile", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
-        ProfileChooserDialog dialog = new ProfileChooserDialog((Frame) SwingUtilities.getWindowAncestor(this), profiles);
-        dialog.setVisible(true);
-
-        File selectedProfileFile = dialog.getSelectedProfile();
-        if (selectedProfileFile != null && dialog.isDeleteRequested()) {
-            handleProfileDeletion(selectedProfileFile);
-        }
-    }
-
-    private void handleProfileLoad(File profileFile) {
-        try {
-            FilterProfile profile = filterProfileService.loadProfile(profileFile);
-            rebuildUIFromProfile(profile);
-            isDirty = false;
-            JOptionPane.showMessageDialog(this, "Profile '" + profile.getProfileName() + "' loaded successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception e) {
-            logger.error("Failed to load profile", e);
-            JOptionPane.showMessageDialog(this, "Error loading profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void handleProfileDeletion(File profileFile) {
-        String profileName = profileFile.getName();
-        int response = JOptionPane.showConfirmDialog(this,
-                "This will permanently remove the profile file:\n" + profileName + "\nAre you sure?",
-                "Delete profile \"" + profileName + "\"?",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE);
-
-        if (response == JOptionPane.YES_OPTION) {
-            try {
-                filterProfileService.deleteProfile(profileFile);
-                JOptionPane.showMessageDialog(this, "Profile '" + profileName + "' deleted successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception e) {
-                logger.error("Failed to delete profile", e);
-                JOptionPane.showMessageDialog(this, "Error deleting profile: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
+        ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), filterProfileService);
+        dialog.showDialog().ifPresent(this::rebuildUIFromProfile);
     }
 
     private FilterProfile createProfileFromUI(String profileName) {
+        // Placeholder for now. I will implement this properly next.
+        // This requires getting the full state from the filterExpressionBuilderPanel,
+        // which in turn needs to get it from its children.
         FilterBuilderState builderState = filterExpressionBuilderPanel.getState();
 
+        // Using the new FilterProfile constructor with the new data model
         return new FilterProfile(
-            profileName,
-            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(new java.util.Date()),
-            dataFilePanel.getFilePath(),
-            dataFilePanel.getSelectedSheet(),
-            filterValuesFilePanel.getFilePath(),
-            filterValuesFilePanel.getSelectedSheet(),
-            builderState,
-            dataFilePanel.getHeaderRowIndices(),
-            dataFilePanel.getConcatenationMode(),
-            filterValuesFilePanel.getHeaderRowIndices(),
-            filterValuesFilePanel.getConcatenationMode()
+                profileName,
+                dataFilePanel.getFilePath(),
+                dataFilePanel.getSelectedSheet(),
+                dataFilePanel.getHeaderRowIndices().isEmpty() ? 0 : dataFilePanel.getHeaderRowIndices().get(0),
+                dataFilePanel.getColumnNames(),
+                builderState
         );
     }
 
     private void rebuildUIFromProfile(FilterProfile profile) {
-        dataFilePanel.setFileAndSheet(profile.getDataFilePath(), profile.getDataSheet());
-        dataFilePanel.setHeaderSelection(profile.getDataHeaderRowIndices(), profile.getDataConcatenationMode());
+        // Handle file not found case
+        File dataFile = new File(profile.getFilePath());
+        if (!dataFile.exists()) {
+            int response = JOptionPane.showConfirmDialog(this,
+                    "The file for this profile was not found at:\n" + profile.getFilePath() + "\nWould you like to locate it now?",
+                    "File Not Found",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (response == JOptionPane.YES_OPTION) {
+                dataFilePanel.browseForFile();
+            } else {
+                // Keep the profile's settings but with a cleared file path
+                dataFilePanel.clearFileSelection();
+            }
+        } else {
+             dataFilePanel.setFileAndSheet(profile.getFilePath(), profile.getSheetName());
+        }
 
-        filterValuesFilePanel.setFileAndSheet(profile.getFilterFilePath(), profile.getFilterSheet());
-        filterValuesFilePanel.setHeaderSelection(profile.getFilterHeaderRowIndices(), profile.getFilterConcatenationMode());
+        // Restore header and filter logic regardless of file status
+        dataFilePanel.setHeaderSelection(List.of(profile.getHeaderRow()), ConcatenationMode.NONE); // Assuming single header row for now
 
-        filterExpressionBuilderPanel.rebuildFromState(profile.getFilterBuilder());
+        // Pass the loaded columns to the builder
+        filterExpressionBuilderPanel.rebuildFromState(profile.getFilters(), profile.getColumns());
 
+        // Refresh UI
         loadPreviews();
         updateFilterResults();
-        isDirty = false; // Loading a profile makes it "not dirty"
-
-        logger.info("Profile '{}' loaded.", profile.getProfileName());
+        isDirty = false;
+        logger.info("Profile '{}' loaded.", profile.getName());
     }
 
     private void exitApplication() {
