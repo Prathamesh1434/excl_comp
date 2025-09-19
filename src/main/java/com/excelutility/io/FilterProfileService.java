@@ -44,7 +44,7 @@ public class FilterProfileService {
      */
     public void saveProfile(FilterProfile profile) throws IOException {
         String timestamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-        String safeName = profile.getProfileName().replaceAll("[^a-zA-Z0-9.-]", "_");
+        String safeName = profile.getName().replaceAll("[^a-zA-Z0-9.-]", "_");
         String fileName = String.format("profile_%s_%s.json", timestamp, safeName);
 
         Path tempFile = null;

@@ -47,7 +47,7 @@ public class FilterRule {
     public String toString() {
         return String.format("Filter on column '%s' %s '%s'",
                 columnName,
-                operator.getSymbol(),
+                operator.toString(),
                 value);
     }
 
@@ -56,6 +56,6 @@ public class FilterRule {
      * @return A descriptive string representation of the rule.
      */
     public String getDescriptiveName() {
-        return String.format("%s %s '%s'", columnName, operator.getSymbol(), value);
+        return String.format("%s %s '%s'", columnName, operator.toString(), value);
     }
 }

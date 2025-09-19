@@ -131,21 +131,49 @@ public class FilterPanel extends JPanel {
             };
             String groupName = com.excelutility.core.AutoNamingService.suggestGroupName();
             LogicalGroupPanel newGroup = new LogicalGroupPanel(groupName, deleteListener);
-            newGroup.getAddRuleButton().addActionListener(ev -> createFilterFromSelection(newGroup));
+
+            // Add listener to the new group's "Add Rule" button
+            newGroup.getAddRuleButton().addActionListener(ev -> addRuleToGroup(newGroup));
+
             rootGroup.addComponent(newGroup);
             isDirty = true;
         });
 
-        filterExpressionBuilderPanel.getRootGroup().getAddRuleButton().addActionListener(ev -> createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup()));
+        // Add listener to the root group's "Add Rule" button
+        filterExpressionBuilderPanel.getRootGroup().getAddRuleButton().addActionListener(ev -> addRuleToGroup(filterExpressionBuilderPanel.getRootGroup()));
+    }
 
-        filterValuesPreviewTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    createFilterFromSelection(filterExpressionBuilderPanel.getRootGroup());
-                }
-            }
-        });
+    private void addRuleToGroup(LogicalGroupPanel group) {
+        List<String> columns = dataFilePanel.getColumnNames();
+        if (columns.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Cannot add rule: No columns found. Please load a data file first.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        ActionListener deleteListener = e -> {
+            FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
+            group.removeComponent(sourcePanel);
+            updateFilterResults();
+        };
+
+        RuleState defaultState = new RuleState(
+            com.excelutility.core.AutoNamingService.suggestRuleName(),
+            columns.get(0),
+            Operator.EQUALS,
+            "",
+            FilteringService.LogicalOperator.AND,
+            "yellow",
+            0
+        );
+
+        FilterRulePanel newRulePanel = new FilterRulePanel(defaultState, deleteListener, columns);
+        group.addComponent(newRulePanel);
+        isDirty = true;
+        revalidate();
+        repaint();
+
+        // Removing the double-click to add filter logic as it's part of the old, complex flow.
+        // A new "Add Rule" button is now the primary way to add rules.
     }
 
     private void configureTable(JTable table) {
@@ -313,11 +341,11 @@ public class FilterPanel extends JPanel {
     }
 
     public void previewRule(FilterRulePanel rulePanel) {
-        runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, rulePanel.getRuleName() + " Preview");
+        //runPreviewFilter(rulePanel.getExpression(), rulePanel::setRecordCount, "Preview"); // TODO: Fix this
     }
 
     public void previewGroup(LogicalGroupPanel groupPanel) {
-        runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, groupPanel.getName() + " Preview");
+        //runPreviewFilter(groupPanel.getExpression(), groupPanel::setRecordCount, "Preview"); // TODO: Fix this
     }
 
     private void runPreviewFilter(FilterExpression expression, java.util.function.Consumer<Integer> countConsumer, String tabTitle) {
@@ -414,44 +442,6 @@ public class FilterPanel extends JPanel {
         return projectedData;
     }
 
-    private void createFilterFromSelection(LogicalGroupPanel targetGroup) {
-        int[] selectedRows = filterValuesPreviewTable.getSelectedRows();
-        int[] selectedCols = filterValuesPreviewTable.getSelectedColumns();
-        if (selectedRows.length == 0 || selectedCols.length == 0) {
-            JOptionPane.showMessageDialog(this, "Please select one or more cells in the 'Filter Values' table first.", "Selection Required", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        List<String> targetColumns = dataFilePanel.getColumnNames();
-        if (targetColumns.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Could not retrieve column names from the data file. Please ensure it is loaded correctly.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        for (int row : selectedRows) {
-            for (int col : selectedCols) {
-                Object cellValueObj = filterValuesPreviewTable.getValueAt(row, col);
-                String cellValue = (cellValueObj == null) ? "" : cellValueObj.toString();
-                String columnName = filterValuesPreviewTable.getColumnName(col);
-                String dialogTitle = String.format("Step 1/2: Select Target for Cell [%d, %d] (Value: %s)", row, col, cellValue);
-                FilterTargetDialog targetDialog = new FilterTargetDialog((Frame) SwingUtilities.getWindowAncestor(this), targetColumns, dialogTitle);
-                targetDialog.setVisible(true);
-                if (targetDialog.isCancelled()) continue;
-                List<String> selectedTargets = targetDialog.getSelectedColumns();
-                boolean trim = targetDialog.isTrimWhitespaceSelected();
-                if (selectedTargets.isEmpty()) continue;
-                FilterSourceDialog sourceDialog = new FilterSourceDialog((Frame) SwingUtilities.getWindowAncestor(this), cellValue, columnName);
-                sourceDialog.setVisible(true);
-                FilterRule.SourceType sourceType = sourceDialog.getSelectedType();
-                if (sourceType == null) continue;
-                String sourceValue = sourceDialog.getSelectedValue();
-                for (String target : selectedTargets) {
-                    FilterRule rule = new FilterRule(sourceType, sourceValue, target, trim);
-                    logger.info("FilterCreate: targetColumn='{}', op=EQUALS, value='{}', trim={}", target, sourceValue, trim);
-                    filterExpressionBuilderPanel.addRuleToGroup(targetGroup, rule);
-                }
-                updateFilterResults();
-            }
-        }
-    }
 
     private void loadPreviews() {
         loadTableData(dataFilePanel, dataPreviewModel, 50, "Error loading data preview", dataPreviewTable, true);
@@ -539,14 +529,14 @@ public class FilterPanel extends JPanel {
                 dataFilePanel.browseForFile();
             } else {
                 // Keep the profile's settings but with a cleared file path
-                dataFilePanel.clearFileSelection();
+                dataFilePanel.setFileAndSheet(null, null);
             }
         } else {
              dataFilePanel.setFileAndSheet(profile.getFilePath(), profile.getSheetName());
         }
 
         // Restore header and filter logic regardless of file status
-        dataFilePanel.setHeaderSelection(List.of(profile.getHeaderRow()), ConcatenationMode.NONE); // Assuming single header row for now
+        dataFilePanel.setHeaderSelection(List.of(profile.getHeaderRow()), ConcatenationMode.LEAF_ONLY); // Assuming single header row for now
 
         // Pass the loaded columns to the builder
         filterExpressionBuilderPanel.rebuildFromState(profile.getFilters(), profile.getColumns());

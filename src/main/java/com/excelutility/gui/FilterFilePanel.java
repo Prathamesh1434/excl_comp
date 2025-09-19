@@ -72,6 +72,10 @@ public class FilterFilePanel extends JPanel {
         });
     }
 
+    public void browseForFile() {
+        selectFile();
+    }
+
     private void selectFile() {
         JFileChooser chooser = new JFileChooser();
         FileNameExtensionFilter excelFilter = new FileNameExtensionFilter("Excel Files (*.xls, *.xlsx)", "xls", "xlsx");

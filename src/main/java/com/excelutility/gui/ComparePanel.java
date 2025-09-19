@@ -316,8 +316,9 @@ public class ComparePanel extends JPanel {
     }
 
     private void openProfileManager() {
-        ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
-        dialog.setVisible(true);
+        // ProfileManagerDialog dialog = new ProfileManagerDialog((Frame) SwingUtilities.getWindowAncestor(this), profileService);
+        // dialog.setVisible(true);
+        JOptionPane.showMessageDialog(this, "This feature is not implemented for Compare profiles yet.", "Not Implemented", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void saveProfile() {

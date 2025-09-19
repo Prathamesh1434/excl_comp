@@ -86,44 +86,60 @@ public class FilteringService {
         return results;
     }
 
-    /**
-     * Checks if a single row matches a single filter rule.
-     *
-     * @param row    The list of objects representing the row's cell values.
-     * @param header The list of header strings.
-     * @param rule   The {@link FilterRule} to check against.
-     * @return True if the row matches the rule, false otherwise.
-     */
     public boolean checkRule(List<Object> row, List<String> header, FilterRule rule) {
-        int targetColIndex = header.indexOf(rule.getTargetColumn());
-        // If the target column specified in the rule doesn't exist in the header, it can't be a match.
+        int targetColIndex = header.indexOf(rule.getColumnName());
         if (targetColIndex == -1) {
             return false;
         }
 
         Object cellObject = (targetColIndex < row.size()) ? row.get(targetColIndex) : null;
-        String sourceValue = rule.getSourceValue();
+        String cellValue = (cellObject == null) ? null : cellObject.toString();
+        String ruleValue = rule.getValue();
+        Operator operator = rule.getOperator();
 
-        // The trimWhitespace flag is now implicitly handled by the Normalizer.
-        return isMatch(cellObject, sourceValue);
-    }
-
-    /**
-     * Performs a normalized, case-insensitive comparison between a cell's value and a source value.
-     *
-     * @param cellObject   The cell's value as an Object.
-     * @param sourceValue  The value to compare against.
-     * @return True if the values are considered a match, false otherwise.
-     */
-    private boolean isMatch(Object cellObject, String sourceValue) {
-        String normalizedCellValue = Normalizer.normalizeValue(cellObject);
-        String normalizedSourceValue = Normalizer.normalizeValue(sourceValue);
-
-        // If the source value is empty, we are specifically looking for empty cells.
-        if (normalizedSourceValue.isEmpty()) {
-            return normalizedCellValue.isEmpty();
+        if (operator == Operator.IS_NULL) {
+            return cellValue == null || cellValue.trim().isEmpty();
         }
-        return normalizedCellValue.equalsIgnoreCase(normalizedSourceValue);
+        if (operator == Operator.IS_NOT_NULL) {
+            return cellValue != null && !cellValue.trim().isEmpty();
+        }
+
+        // For all other operators, if the cell value is null, it cannot be a match.
+        if (cellValue == null) {
+            return false;
+        }
+
+        switch (operator) {
+            case EQUALS:
+                return cellValue.equalsIgnoreCase(ruleValue);
+            case NOT_EQUALS:
+                return !cellValue.equalsIgnoreCase(ruleValue);
+            case CONTAINS:
+                return cellValue.toLowerCase().contains(ruleValue.toLowerCase());
+            case NOT_CONTAINS:
+                return !cellValue.toLowerCase().contains(ruleValue.toLowerCase());
+            case STARTS_WITH:
+                return cellValue.toLowerCase().startsWith(ruleValue.toLowerCase());
+            case ENDS_WITH:
+                return cellValue.toLowerCase().endsWith(ruleValue.toLowerCase());
+            case GREATER_THAN:
+            case LESS_THAN:
+            case GREATER_OR_EQUAL:
+            case LESS_OR_EQUAL:
+                try {
+                    double cellNum = Double.parseDouble(cellValue);
+                    double ruleNum = Double.parseDouble(ruleValue);
+                    if (operator == Operator.GREATER_THAN) return cellNum > ruleNum;
+                    if (operator == Operator.LESS_THAN) return cellNum < ruleNum;
+                    if (operator == Operator.GREATER_OR_EQUAL) return cellNum >= ruleNum;
+                    if (operator == Operator.LESS_OR_EQUAL) return cellNum <= ruleNum;
+                } catch (NumberFormatException e) {
+                    return false; // Cannot compare non-numeric values
+                }
+            // Other cases like REGEX, IN_LIST, BETWEEN would be implemented here.
+            default:
+                return false;
+        }
     }
 
     /**

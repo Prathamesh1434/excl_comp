@@ -30,29 +30,6 @@ public class FilterExpressionBuilderPanel extends JPanel {
         // The FilterPanel is now responsible for wiring up all buttons.
     }
 
-    /**
-     * Adds a new filter rule to a specific group panel.
-     * @param targetGroup The LogicalGroupPanel to add the rule to.
-     * @param rule The rule to add.
-     */
-    public void addRuleToGroup(LogicalGroupPanel targetGroup, FilterRule rule) {
-        // The delete listener for a rule removes it from its parent group
-        ActionListener deleteListener = e -> {
-            FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
-            targetGroup.removeComponent(sourcePanel);
-        };
-        String ruleName = com.excelutility.core.AutoNamingService.suggestRuleName();
-        FilterRulePanel newRulePanel = new FilterRulePanel(ruleName, rule, deleteListener);
-
-        // Wire up the preview button to the main panel's logic
-        // This is a bit of a workaround, but keeps the logic in FilterPanel.
-        // A better long-term solution might use an event bus.
-        if (newRulePanel.getPreviewButton() != null) {
-            newRulePanel.getPreviewButton().addActionListener(e -> panelProvider.previewRule(newRulePanel));
-        }
-
-        targetGroup.addComponent(newRulePanel);
-    }
 
     /**
      * @return The root group panel, which is the entry point to the expression tree.
