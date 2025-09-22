@@ -82,8 +82,17 @@ public class FilterRulePanel extends JPanel implements ExpressionNodeComponent {
 
     @Override
     public FilterExpression getExpression() {
-        RuleNode node = new RuleNode(this.rule);
-        node.setName(getRuleName());
-        return node;
+        // The RuleNode's descriptive name should come from the rule itself, not the panel's editable name.
+        return new RuleNode(this.rule);
+    }
+
+    @Override
+    public String getName() {
+        return getRuleName();
+    }
+
+    @Override
+    public void setName(String name) {
+        ruleNameField.setText(name);
     }
 }
