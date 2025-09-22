@@ -7,15 +7,15 @@ import net.miginfocom.swing.MigLayout;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * A panel that represents a logical grouping of other filter components.
- * This version supports infix operators (AND/OR between each component).
+ * This version supports a single logical operator (AND/OR) for the entire group,
+ * but visually represents it with infix operators between each component for clarity.
  */
 public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent {
 
@@ -23,16 +23,17 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     private final JPanel contentPanel;
     private final JButton addRuleButton;
     private final JLabel recordCountLabel;
-    private final OperatorPanel groupOperatorPanel;
+    private FilteringService.LogicalOperator operator = FilteringService.LogicalOperator.AND; // The single source of truth
 
     /**
-     * A panel for the AND/OR radio buttons.
+     * A purely visual panel for the AND/OR radio buttons between components.
+     * Its state is controlled by the parent LogicalGroupPanel.
      */
-    private static class OperatorPanel extends JPanel {
+    private class InfixOperatorPanel extends JPanel {
         private final JRadioButton andButton;
         private final JRadioButton orButton;
 
-        public OperatorPanel() {
+        public InfixOperatorPanel() {
             super(new FlowLayout(FlowLayout.CENTER, 5, 0));
             andButton = new JRadioButton("AND");
             orButton = new JRadioButton("OR");
@@ -40,22 +41,25 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
             ButtonGroup group = new ButtonGroup();
             group.add(andButton);
             group.add(orButton);
-            andButton.setSelected(true); // Default to AND
-
             add(andButton);
             add(orButton);
+
+            // Add listeners to update the PARENT's operator
+            andButton.addActionListener(e -> setOperator(FilteringService.LogicalOperator.AND));
+            orButton.addActionListener(e -> setOperator(FilteringService.LogicalOperator.OR));
+
+            updateAppearance();
         }
 
-        public FilteringService.LogicalOperator getOperator() {
-            return andButton.isSelected() ? FilteringService.LogicalOperator.AND : FilteringService.LogicalOperator.OR;
-        }
+        public void updateAppearance() {
+            boolean isAnd = (getOperator() == FilteringService.LogicalOperator.AND);
+            andButton.setSelected(isAnd);
+            orButton.setSelected(!isAnd);
 
-        public void setOperator(FilteringService.LogicalOperator op) {
-            if (op == FilteringService.LogicalOperator.AND) {
-                andButton.setSelected(true);
-            } else {
-                orButton.setSelected(true);
-            }
+            Color color = isAnd ? new Color(0x2F8F6D) : new Color(0xF2C94C);
+            setBackground(color);
+            andButton.setBackground(color);
+            orButton.setBackground(color);
         }
     }
 
@@ -72,12 +76,6 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         groupNameField.setBackground(topBar.getBackground());
         topBar.add(groupNameField, "growx, wmin 100");
 
-        groupOperatorPanel = new OperatorPanel();
-        groupOperatorPanel.setBackground(topBar.getBackground());
-        groupOperatorPanel.andButton.setBackground(topBar.getBackground());
-        groupOperatorPanel.orButton.setBackground(topBar.getBackground());
-        topBar.add(groupOperatorPanel, "gapleft 10");
-
         recordCountLabel = new JLabel("(N/A)");
         recordCountLabel.setFont(recordCountLabel.getFont().deriveFont(Font.BOLD));
         topBar.add(recordCountLabel, "gapleft 10");
@@ -89,7 +87,7 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
             JButton deleteGroupButton = new JButton("X");
             deleteGroupButton.setToolTipText("Delete this group");
             deleteGroupButton.setMargin(new Insets(1, 1, 1, 1));
-            deleteGroupButton.addActionListener(e -> deleteListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null)));
+            deleteGroupButton.addActionListener(e -> deleteListener.actionPerformed(new java.awt.event.ActionEvent(this, java.awt.event.ActionEvent.ACTION_PERFORMED, null)));
             topBar.add(deleteGroupButton);
         }
 
@@ -100,11 +98,17 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     }
 
     public FilteringService.LogicalOperator getOperator() {
-        return groupOperatorPanel.getOperator();
+        return this.operator;
     }
 
     public void setOperator(FilteringService.LogicalOperator operator) {
-        groupOperatorPanel.setOperator(operator);
+        this.operator = operator;
+        // Update all child operator panels to reflect the new state
+        for (Component comp : contentPanel.getComponents()) {
+            if (comp instanceof InfixOperatorPanel) {
+                ((InfixOperatorPanel) comp).updateAppearance();
+            }
+        }
     }
 
     @Override
@@ -118,26 +122,33 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         setBorder(BorderFactory.createTitledBorder(name));
     }
 
-
-    @Override
-    public void setBorder(javax.swing.border.Border border) {
-        if (groupNameField != null && border instanceof javax.swing.border.TitledBorder) {
-            groupNameField.setText(((javax.swing.border.TitledBorder) border).getTitle());
-        }
-        super.setBorder(border);
-    }
-
     public void addComponent(Component component) {
         if (!(component instanceof ExpressionNodeComponent)) {
             throw new IllegalArgumentException("Only ExpressionNodeComponents can be added to a LogicalGroupPanel.");
         }
-        contentPanel.add(component, "growx, gaptop 5");
+        if (contentPanel.getComponentCount() > 0) {
+            contentPanel.add(new InfixOperatorPanel(), "growx, align center, gaptop 5, gapbottom 5");
+        }
+        contentPanel.add(component, "growx");
         revalidateAndRepaint();
     }
 
     public void removeComponent(Component component) {
-        contentPanel.remove(component);
-        revalidateAndRepaint();
+        List<Component> components = new ArrayList<>(Arrays.asList(contentPanel.getComponents()));
+        int index = components.indexOf(component);
+
+        if (index != -1) {
+            // If we are removing the first component, also remove the operator AFTER it.
+            if (index == 0 && components.size() > 1) {
+                contentPanel.remove(1); // Remove operator panel
+            }
+            // If we are removing any other component, remove the operator BEFORE it.
+            else if (index > 0) {
+                contentPanel.remove(index - 1); // Remove operator panel
+            }
+            contentPanel.remove(component);
+            revalidateAndRepaint();
+        }
     }
 
     private void revalidateAndRepaint() {
@@ -155,6 +166,10 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         revalidateAndRepaint();
     }
 
+    public JPanel getContentPanel() {
+        return contentPanel;
+    }
+
     @Override
     public FilterExpression getExpression() {
         GroupNode groupNode = new GroupNode(getOperator(), getName());
@@ -169,21 +184,13 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
         return addRuleButton;
     }
 
-    public JPanel getContentPanel() {
-        return contentPanel;
-    }
-
     public void setRecordCount(int count) {
         if (count < 0) {
             recordCountLabel.setText("(Error)");
             recordCountLabel.setForeground(Color.ORANGE);
         } else {
             recordCountLabel.setText("(" + count + ")");
-            if (count == 0) {
-                recordCountLabel.setForeground(Color.RED);
-            } else {
-                recordCountLabel.setForeground(new Color(0, 153, 0)); // Dark Green
-            }
+            recordCountLabel.setForeground(count == 0 ? Color.RED : new Color(0, 153, 0));
         }
     }
 }
