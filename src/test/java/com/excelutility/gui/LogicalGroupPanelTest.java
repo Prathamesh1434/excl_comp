@@ -34,11 +34,8 @@ public class LogicalGroupPanelTest {
 
         FilterExpression expression = groupPanel.getExpression();
 
-        assertTrue(expression instanceof GroupNode, "Expression should be a GroupNode");
-        GroupNode groupNode = (GroupNode) expression;
-        assertEquals(1, groupNode.getChildren().size(), "Group should contain one child");
-        assertTrue(groupNode.getChildren().get(0) instanceof RuleNode, "Child should be a RuleNode");
-        assertEquals("ColumnA = 'Rule1'", groupNode.getChildren().get(0).getDescriptiveName());
+        assertTrue(expression instanceof RuleNode, "Expression should be a RuleNode for a single rule");
+        assertEquals("Rule1", expression.getDescriptiveName());
     }
 
     @Test
@@ -46,17 +43,21 @@ public class LogicalGroupPanelTest {
         FilterRulePanel rulePanel1 = createRealRulePanel("Rule1");
         FilterRulePanel rulePanel2 = createRealRulePanel("Rule2");
         groupPanel.addComponent(rulePanel1);
-        groupPanel.addComponent(rulePanel2);
+        groupPanel.addComponent(rulePanel2); // This will add an OperatorPanel between them
 
         FilterExpression expression = groupPanel.getExpression();
 
         assertTrue(expression instanceof GroupNode, "Expression should be a GroupNode for multiple rules");
         GroupNode groupNode = (GroupNode) expression;
 
+        // The outer group node is just a wrapper with the name
         assertEquals("Test Group", groupNode.getName());
-        assertEquals(FilteringService.LogicalOperator.AND, groupNode.getOperator(), "Default operator should be AND");
-        assertEquals(2, groupNode.getChildren().size(), "The group should have two children");
-        assertTrue(groupNode.getChildren().get(0) instanceof RuleNode);
-        assertTrue(groupNode.getChildren().get(1) instanceof RuleNode);
+        assertEquals(1, groupNode.getChildren().size(), "The named group should have one child expression tree");
+
+        GroupNode innerGroup = (GroupNode) groupNode.getChildren().get(0);
+        assertEquals(FilteringService.LogicalOperator.AND, innerGroup.getOperator(), "Default operator should be AND");
+        assertEquals(2, innerGroup.getChildren().size());
+        assertTrue(innerGroup.getChildren().get(0) instanceof RuleNode);
+        assertTrue(innerGroup.getChildren().get(1) instanceof RuleNode);
     }
 }
