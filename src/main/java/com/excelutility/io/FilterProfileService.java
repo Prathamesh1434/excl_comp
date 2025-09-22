@@ -25,9 +25,19 @@ public class FilterProfileService {
     private final Path profileDir;
     private final ObjectMapper mapper;
 
+    /**
+     * Default constructor, creates a profile directory in the user's home folder.
+     */
     public FilterProfileService() {
-        String userHome = System.getProperty("user.home");
-        this.profileDir = Paths.get(userHome, ".excel-utility", "profiles");
+        this(Paths.get(System.getProperty("user.home"), ".excel-utility", "profiles"));
+    }
+
+    /**
+     * Constructor for testing purposes, allows specifying a custom profile directory.
+     * @param profileDir The directory to save and load profiles from.
+     */
+    public FilterProfileService(Path profileDir) {
+        this.profileDir = profileDir;
         try {
             Files.createDirectories(profileDir);
         } catch (IOException e) {
