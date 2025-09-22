@@ -8,7 +8,7 @@ import java.util.Objects;
  * A serializable representation of a FilterRule for saving to a profile.
  */
 public class RuleState {
-
+    private final String name;
     private final FilterRule.SourceType sourceType;
     private final String sourceValue;
     private final String targetColumn;
@@ -16,10 +16,12 @@ public class RuleState {
 
     @JsonCreator
     public RuleState(
+            @JsonProperty("name") String name,
             @JsonProperty("sourceType") FilterRule.SourceType sourceType,
             @JsonProperty("sourceValue") String sourceValue,
             @JsonProperty("targetColumn") String targetColumn,
             @JsonProperty("trimWhitespace") boolean trimWhitespace) {
+        this.name = name;
         this.sourceType = sourceType;
         this.sourceValue = sourceValue;
         this.targetColumn = targetColumn;
@@ -27,6 +29,7 @@ public class RuleState {
     }
 
     // Getters
+    public String getName() { return name; }
     public FilterRule.SourceType getSourceType() { return sourceType; }
     public String getSourceValue() { return sourceValue; }
     public String getTargetColumn() { return targetColumn; }
@@ -42,6 +45,7 @@ public class RuleState {
         if (o == null || getClass() != o.getClass()) return false;
         RuleState ruleState = (RuleState) o;
         return trimWhitespace == ruleState.trimWhitespace &&
+                Objects.equals(name, ruleState.name) &&
                 sourceType == ruleState.sourceType &&
                 Objects.equals(sourceValue, ruleState.sourceValue) &&
                 Objects.equals(targetColumn, ruleState.targetColumn);
@@ -49,6 +53,6 @@ public class RuleState {
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceType, sourceValue, targetColumn, trimWhitespace);
+        return Objects.hash(name, sourceType, sourceValue, targetColumn, trimWhitespace);
     }
 }

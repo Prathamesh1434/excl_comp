@@ -13,8 +13,8 @@ public class ProfileSerializationTest {
     @Test
     void testProfileSerialization() throws Exception {
         // 1. Create a complex profile object
-        RuleState rule1 = new RuleState(FilterRule.SourceType.BY_VALUE, "Value1", "ColumnA", true);
-        RuleState rule2 = new RuleState(FilterRule.SourceType.BY_COLUMN, "ColumnB", "ColumnC", false);
+        RuleState rule1 = new RuleState("Rule 1", FilterRule.SourceType.BY_VALUE, "Value1", "ColumnA", true);
+        RuleState rule2 = new RuleState("Rule 2", FilterRule.SourceType.BY_COLUMN, "ColumnB", "ColumnC", false);
 
         List<RuleState> group1Rules = new ArrayList<>();
         group1Rules.add(rule1);

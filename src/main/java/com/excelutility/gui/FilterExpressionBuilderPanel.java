@@ -5,7 +5,6 @@ import net.miginfocom.swing.MigLayout;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 /**
@@ -26,93 +25,92 @@ public class FilterExpressionBuilderPanel extends JPanel {
         // The root group cannot be deleted, so its delete listener is null.
         rootGroup = new LogicalGroupPanel("Root", null);
         add(rootGroup, "growx");
-
-        // The FilterPanel is now responsible for wiring up all buttons.
     }
 
-    /**
-     * Adds a new filter rule to a specific group panel.
-     * @param targetGroup The LogicalGroupPanel to add the rule to.
-     * @param rule The rule to add.
-     */
     public void addRuleToGroup(LogicalGroupPanel targetGroup, FilterRule rule) {
-        // The delete listener for a rule removes it from its parent group
+        String ruleName = com.excelutility.core.AutoNamingService.suggestRuleName();
+        addRuleToGroup(targetGroup, rule, ruleName);
+    }
+
+    private void addRuleToGroup(LogicalGroupPanel targetGroup, FilterRule rule, String ruleName) {
         ActionListener deleteListener = e -> {
             FilterRulePanel sourcePanel = (FilterRulePanel) e.getSource();
             targetGroup.removeComponent(sourcePanel);
         };
-        String ruleName = com.excelutility.core.AutoNamingService.suggestRuleName();
         FilterRulePanel newRulePanel = new FilterRulePanel(ruleName, rule, deleteListener);
 
-        // Wire up the preview button to the main panel's logic
-        // This is a bit of a workaround, but keeps the logic in FilterPanel.
-        // A better long-term solution might use an event bus.
-        if (newRulePanel.getPreviewButton() != null) {
+        if (panelProvider != null && newRulePanel.getPreviewButton() != null) {
             newRulePanel.getPreviewButton().addActionListener(e -> panelProvider.previewRule(newRulePanel));
         }
 
         targetGroup.addComponent(newRulePanel);
     }
 
-    /**
-     * @return The root group panel, which is the entry point to the expression tree.
-     */
     public LogicalGroupPanel getRootGroup() {
         return rootGroup;
     }
 
-    /**
-     * Clears the existing UI and rebuilds it from a saved state.
-     * @param state The state to load.
-     */
     public void rebuildFromState(com.excelutility.core.FilterBuilderState state) {
         rootGroup.removeAll();
+        rootGroup.revalidate();
+        rootGroup.repaint();
         com.excelutility.core.AutoNamingService.reset();
 
-        if (state == null || state.getGroups() == null) {
-            rootGroup.revalidate();
-            rootGroup.repaint();
+        if (state == null || state.getGroups() == null || state.getGroups().isEmpty()) {
             return;
         }
 
-        for (com.excelutility.core.GroupState groupState : state.getGroups()) {
-            ActionListener deleteListener = event -> {
-                LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
-                rootGroup.removeComponent(sourceGroup);
-                panelProvider.updateFilterResults();
-            };
-            LogicalGroupPanel newGroup = new LogicalGroupPanel(groupState.getName(), deleteListener);
-            for (com.excelutility.core.RuleState ruleState : groupState.getRules()) {
-                addRuleToGroup(newGroup, ruleState.toFilterRule());
-            }
-            rootGroup.addComponent(newGroup);
-        }
+        com.excelutility.core.GroupState rootGroupState = state.getGroups().get(0);
+        rootGroup.setName(rootGroupState.getName());
+        rootGroup.setOperator(rootGroupState.getOperator());
+        buildGroupPanelFromState(rootGroup, rootGroupState);
 
         rootGroup.revalidate();
         rootGroup.repaint();
     }
 
-    /**
-     * Captures the current state of the UI into a serializable object.
-     * @return The current state.
-     */
-    public com.excelutility.core.FilterBuilderState getState() {
-        java.util.List<com.excelutility.core.GroupState> groupStates = new java.util.ArrayList<>();
-        for (java.awt.Component comp : rootGroup.getComponents()) {
-            if (comp instanceof LogicalGroupPanel) {
-                LogicalGroupPanel groupPanel = (LogicalGroupPanel) comp;
-                java.util.List<com.excelutility.core.RuleState> ruleStates = new java.util.ArrayList<>();
-                for (java.awt.Component ruleComp : groupPanel.getComponents()) {
-                    if (ruleComp instanceof FilterRulePanel) {
-                        FilterRulePanel rulePanel = (FilterRulePanel) ruleComp;
-                        FilterRule rule = rulePanel.getRule();
-                        ruleStates.add(new com.excelutility.core.RuleState(rule.getSourceType(), rule.getSourceValue(), rule.getTargetColumn(), rule.isTrimWhitespace()));
-                    }
-                }
-                // This simplified version doesn't capture the group's logical operator or nested groups.
-                groupStates.add(new com.excelutility.core.GroupState(groupPanel.getName(), com.excelutility.core.FilteringService.LogicalOperator.AND, ruleStates, new java.util.ArrayList<>()));
+    private void buildGroupPanelFromState(LogicalGroupPanel parentPanel, com.excelutility.core.GroupState groupState) {
+        if (groupState.getRules() != null) {
+            for (com.excelutility.core.RuleState ruleState : groupState.getRules()) {
+                addRuleToGroup(parentPanel, ruleState.toFilterRule(), ruleState.getName());
             }
         }
-        return new com.excelutility.core.FilterBuilderState(groupStates);
+
+        if (groupState.getGroups() != null) {
+            for (com.excelutility.core.GroupState subGroupState : groupState.getGroups()) {
+                ActionListener deleteListener = event -> {
+                    LogicalGroupPanel sourceGroup = (LogicalGroupPanel) event.getSource();
+                    parentPanel.removeComponent(sourceGroup);
+                    if (panelProvider != null) {
+                        panelProvider.updateFilterResults();
+                    }
+                };
+                LogicalGroupPanel newGroupPanel = new LogicalGroupPanel(subGroupState.getName(), deleteListener);
+                newGroupPanel.setOperator(subGroupState.getOperator());
+                buildGroupPanelFromState(newGroupPanel, subGroupState);
+                parentPanel.addComponent(newGroupPanel);
+            }
+        }
+    }
+
+    public com.excelutility.core.FilterBuilderState getState() {
+        com.excelutility.core.GroupState rootGroupState = createGroupStateFromPanel(rootGroup);
+        return new com.excelutility.core.FilterBuilderState(java.util.Collections.singletonList(rootGroupState));
+    }
+
+    private com.excelutility.core.GroupState createGroupStateFromPanel(LogicalGroupPanel groupPanel) {
+        java.util.List<com.excelutility.core.RuleState> ruleStates = new java.util.ArrayList<>();
+        java.util.List<com.excelutility.core.GroupState> groupStates = new java.util.ArrayList<>();
+
+        for (Component comp : groupPanel.getContentPanel().getComponents()) {
+            if (comp instanceof FilterRulePanel) {
+                FilterRulePanel rulePanel = (FilterRulePanel) comp;
+                FilterRule rule = rulePanel.getRule();
+                ruleStates.add(new com.excelutility.core.RuleState(rulePanel.getName(), rule.getSourceType(), rule.getSourceValue(), rule.getTargetColumn(), rule.isTrimWhitespace()));
+            } else if (comp instanceof LogicalGroupPanel) {
+                groupStates.add(createGroupStateFromPanel((LogicalGroupPanel) comp));
+            }
+        }
+        return new com.excelutility.core.GroupState(groupPanel.getName(), groupPanel.getOperator(), ruleStates, groupStates);
     }
 }
