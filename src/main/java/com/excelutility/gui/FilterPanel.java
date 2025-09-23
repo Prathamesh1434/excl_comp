@@ -467,12 +467,12 @@ public class FilterPanel extends JPanel {
         fileMenu.addSeparator();
 
         JMenuItem saveProfileItem = new JMenuItem("Save Profile...");
-        saveProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        saveProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, getShortcutMask()));
         saveProfileItem.addActionListener(e -> saveFilterProfile());
         fileMenu.add(saveProfileItem);
 
         JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
-        loadProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        loadProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, getShortcutMask()));
         loadProfileItem.addActionListener(e -> loadFilterProfile());
         fileMenu.add(loadProfileItem);
 
@@ -486,6 +486,22 @@ public class FilterPanel extends JPanel {
         fileMenu.add(exitItem);
         menuBar.add(fileMenu);
         return menuBar;
+    }
+
+    private int getShortcutMask() {
+        String javaVersion = System.getProperty("java.version");
+        if (javaVersion.startsWith("1.8")) {
+            return Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+        } else {
+            try {
+                // Using reflection to support Java 9+ while compiling with Java 8
+                java.lang.reflect.Method method = Toolkit.class.getMethod("getMenuShortcutKeyMaskEx");
+                return (int) method.invoke(Toolkit.getDefaultToolkit());
+            } catch (Exception e) {
+                // Fallback for any unexpected issues
+                return Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+            }
+        }
     }
 
     private void saveFilterProfile() {
