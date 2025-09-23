@@ -76,17 +76,9 @@ public class ExcelReader {
     }
 
     public static List<List<Object>> read(String filePath, String sheetName, boolean useStreaming) throws IOException, InvalidFormatException {
-        if (useStreaming && filePath.toLowerCase().endsWith(".xlsx")) {
-            try {
-                // Note: Streaming read might not preserve blank cells perfectly depending on implementation.
-                // The current implementation is basic. A more robust one would handle cell references ('r' attribute).
-                return readStream(filePath, sheetName);
-            } catch (Exception e) {
-                throw new IOException("Streaming read failed", e);
-            }
-        } else {
-            return readInMemory(filePath, sheetName);
-        }
+        // The streaming reader has been reported to cause issues on some systems.
+        // Forcing the in-memory reader for now as it is more robust.
+        return readInMemory(filePath, sheetName);
     }
 
     private static List<List<Object>> readInMemory(String filePath, String sheetName) throws IOException {
