@@ -2,6 +2,23 @@
 
 Welcome to the Excel Utility! This guide will walk you through the features of the application.
 
+## Getting Started: Launching the Application
+
+To start the application, you will need to have Java installed on your computer. You can download Java from the official website if you don't have it. This application is compatible with Java 8 and all newer versions.
+
+Once Java is installed, you can launch the application by simply **double-clicking** on the `excel-utility-1.0.0-all.jar` file.
+
+### Troubleshooting
+
+If the application does not open after double-clicking the JAR file, please try the following:
+
+1.  **Verify Java Installation:** Open a terminal or command prompt and type `java -version`. If you see a message with your Java version, then Java is installed correctly. If not, you will need to install Java.
+2.  **Run from Command Line:** If Java is installed but the double-click doesn't work, you can try running the application from the command line. Open a terminal or command prompt, navigate to the directory where the JAR file is located, and run the following command:
+    ```
+    java -jar excel-utility-1.0.0-all.jar
+    ```
+    This may show you an error message that can help diagnose the problem.
+
 ## 1. Choosing a Mode
 
 When you first start the application, you will be asked to choose a mode. You can switch between modes at any time by using the "File" > "Back to Mode Selection" menu item.
