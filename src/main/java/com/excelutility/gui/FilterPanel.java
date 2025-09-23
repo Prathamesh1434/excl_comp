@@ -467,12 +467,12 @@ public class FilterPanel extends JPanel {
         fileMenu.addSeparator();
 
         JMenuItem saveProfileItem = new JMenuItem("Save Profile...");
-        saveProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+        saveProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
         saveProfileItem.addActionListener(e -> saveFilterProfile());
         fileMenu.add(saveProfileItem);
 
         JMenuItem loadProfileItem = new JMenuItem("Load Profile...");
-        loadProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+        loadProfileItem.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
         loadProfileItem.addActionListener(e -> loadFilterProfile());
         fileMenu.add(loadProfileItem);
 
